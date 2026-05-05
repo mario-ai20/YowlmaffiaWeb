@@ -1,0 +1,1213 @@
+-- Run this once in Supabase if the existing project only has the 3 base columns
+-- on public.allowed_users. It is safe to run multiple times.
+
+alter table public.allowed_users
+  add column if not exists id uuid unique;
+alter table public.allowed_users
+  add column if not exists accent text not null default '#72d4ff';
+alter table public.allowed_users
+  add column if not exists birth_date text not null default '';
+alter table public.allowed_users
+  add column if not exists auth_user_id uuid unique;
+alter table public.allowed_users
+  add column if not exists avatar_url text not null default '';
+alter table public.allowed_users
+  add column if not exists updated_at timestamptz not null default now();
+alter table public.allowed_users
+  add column if not exists last_online_at timestamptz;
+alter table public.allowed_users
+  add column if not exists bio text not null default '';
+alter table public.allowed_users
+  add column if not exists status_message text not null default '';
+alter table public.allowed_users
+  add column if not exists email_mfa_enabled boolean not null default true;
+alter table public.allowed_users
+  add column if not exists theme_mode text not null default 'system';
+alter table public.allowed_users
+  add column if not exists stay_logged_in boolean not null default true;
+alter table public.allowed_users
+  add column if not exists gender text not null default 'zeg ik liever niet';
+alter table public.allowed_users
+  drop column if exists do_not_disturb;
+
+update public.allowed_users
+set
+  id = coalesce(id, auth_user_id, (
+    select au.id
+    from auth.users au
+    where lower(au.email) = lower(public.allowed_users.email)
+    limit 1
+  )),
+  accent = coalesce(accent, '#72d4ff'),
+  birth_date = coalesce(birth_date, ''),
+  auth_user_id = coalesce(auth_user_id, (
+    select au.id
+    from auth.users au
+    where lower(au.email) = lower(public.allowed_users.email)
+    limit 1
+  )),
+  avatar_url = coalesce(avatar_url, ''),
+  updated_at = coalesce(updated_at, now()),
+  last_online_at = last_online_at,
+  bio = coalesce(bio, ''),
+  status_message = coalesce(status_message, ''),
+  email_mfa_enabled = coalesce(email_mfa_enabled, true),
+  theme_mode = coalesce(theme_mode, 'system'),
+  stay_logged_in = coalesce(stay_logged_in, true),
+  gender = coalesce(gender, 'zeg ik liever niet');
+
+update public.allowed_users u
+set
+  id = coalesce(u.id, au.id),
+  auth_user_id = coalesce(u.auth_user_id, au.id),
+  username = coalesce(
+    nullif(trim(coalesce(au.raw_user_meta_data ->> 'username', '')), ''),
+    u.username
+  ),
+  display_name = coalesce(
+    nullif(trim(coalesce(au.raw_user_meta_data ->> 'display_name', '')), ''),
+    nullif(trim(coalesce(au.raw_user_meta_data ->> 'displayName', '')), ''),
+    nullif(trim(coalesce(au.raw_user_meta_data ->> 'name', '')), ''),
+    u.display_name
+  ),
+  updated_at = now()
+from auth.users au
+where (
+  (u.auth_user_id is not null and u.auth_user_id = au.id)
+  or lower(u.email) = lower(coalesce(au.email, ''))
+)
+and (
+  u.display_name is null
+  or trim(u.display_name) = ''
+  or lower(trim(u.display_name)) = lower(coalesce(u.username, ''))
+  or lower(trim(u.display_name)) = lower(split_part(coalesce(u.email, ''), '@', 1))
+);
+
+insert into public.allowed_users (
+  id,
+  auth_user_id,
+  username,
+  email,
+  display_name,
+  birth_date,
+  accent,
+  avatar_url,
+  updated_at,
+  bio,
+  status_message,
+  email_mfa_enabled,
+  theme_mode,
+  stay_logged_in,
+  gender
+)
+select
+  au.id,
+  au.id,
+  coalesce(
+    nullif(trim(au.raw_user_meta_data ->> 'username'), ''),
+    nullif(trim(au.raw_user_meta_data ->> 'display_name'), ''),
+    nullif(trim(au.raw_user_meta_data ->> 'displayName'), ''),
+    split_part(coalesce(au.email, ''), '@', 1),
+    'Bezoeker'
+  ),
+  coalesce(au.email, ''),
+  coalesce(
+    nullif(trim(au.raw_user_meta_data ->> 'display_name'), ''),
+    nullif(trim(au.raw_user_meta_data ->> 'displayName'), ''),
+    nullif(trim(au.raw_user_meta_data ->> 'username'), ''),
+    split_part(coalesce(au.email, ''), '@', 1),
+    'Bezoeker'
+  ),
+  coalesce(nullif(trim(au.raw_user_meta_data ->> 'birth_date'), ''), ''),
+  coalesce(nullif(trim(au.raw_user_meta_data ->> 'accent'), ''), '#72d4ff'),
+  coalesce(nullif(trim(au.raw_user_meta_data ->> 'avatar_url'), ''), ''),
+  coalesce(au.updated_at, now()),
+  coalesce(nullif(trim(au.raw_user_meta_data ->> 'bio'), ''), ''),
+  coalesce(nullif(trim(au.raw_user_meta_data ->> 'status_message'), ''), ''),
+  coalesce((au.raw_user_meta_data ->> 'email_mfa_enabled')::boolean, true),
+  coalesce(nullif(trim(au.raw_user_meta_data ->> 'theme_mode'), ''), 'system'),
+  coalesce((au.raw_user_meta_data ->> 'stay_logged_in')::boolean, true),
+  coalesce(nullif(trim(au.raw_user_meta_data ->> 'gender'), ''), 'zeg ik liever niet')
+from auth.users au
+on conflict (id) do update
+set
+  id = coalesce(public.allowed_users.id, excluded.id),
+  auth_user_id = coalesce(public.allowed_users.auth_user_id, excluded.auth_user_id),
+  username = excluded.username,
+  display_name = excluded.display_name,
+  birth_date = excluded.birth_date,
+  accent = excluded.accent,
+  avatar_url = coalesce(public.allowed_users.avatar_url, excluded.avatar_url),
+  bio = coalesce(public.allowed_users.bio, excluded.bio),
+  status_message = coalesce(public.allowed_users.status_message, excluded.status_message),
+  email_mfa_enabled = coalesce(public.allowed_users.email_mfa_enabled, excluded.email_mfa_enabled),
+  theme_mode = coalesce(public.allowed_users.theme_mode, excluded.theme_mode),
+  stay_logged_in = coalesce(public.allowed_users.stay_logged_in, excluded.stay_logged_in),
+  gender = coalesce(public.allowed_users.gender, excluded.gender),
+  updated_at = now();
+
+update public.messages m
+set sender = u.username
+from public.allowed_users u
+where coalesce(nullif(trim(m.sender), ''), '') <> ''
+  and coalesce(nullif(trim(u.username), ''), '') <> ''
+  and (
+    lower(trim(m.sender)) = lower(trim(coalesce(u.display_name, '')))
+    or lower(trim(m.sender)) = lower(trim(coalesce(u.email, '')))
+    or lower(trim(m.sender)) = lower(trim(split_part(coalesce(u.email, ''), '@', 1)))
+  )
+  and lower(trim(m.sender)) <> lower(trim(u.username));
+
+update public.messages m
+set recipient = u.username
+from public.allowed_users u
+where coalesce(nullif(trim(m.recipient), ''), '') <> ''
+  and coalesce(nullif(trim(u.username), ''), '') <> ''
+  and (
+    lower(trim(m.recipient)) = lower(trim(coalesce(u.display_name, '')))
+    or lower(trim(m.recipient)) = lower(trim(coalesce(u.email, '')))
+    or lower(trim(m.recipient)) = lower(trim(split_part(coalesce(u.email, ''), '@', 1)))
+  )
+  and lower(trim(m.recipient)) <> lower(trim(u.username));
+
+create or replace function public.is_allowed_yowl_user()
+returns boolean
+language sql
+stable
+as $$
+  select exists (
+    select 1
+    from public.allowed_users
+    where (auth.uid() is not null and auth_user_id = auth.uid())
+       or lower(email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+$$;
+
+create or replace function public.current_allowed_username()
+  returns text
+  language sql
+  stable
+  as $$
+    select coalesce(
+      (
+        select u.username
+        from public.allowed_users u
+        where (auth.uid() is not null and u.auth_user_id = auth.uid())
+           or lower(u.email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+        limit 1
+      ),
+      ''
+      );
+  $$;
+
+create or replace function public.is_mattiz_allowed_user()
+returns boolean
+language sql
+stable
+as $$
+  select coalesce(auth.uid()::text, '') in (
+    'c3fcfff7-b081-49b6-b936-350ef808629a',
+    '1cf45d1c-b3ba-432e-a9de-33928369392b'
+  );
+$$;
+ 
+  grant select on table public.allowed_users to anon, authenticated;
+grant update on table public.allowed_users to authenticated;
+
+alter table public.allowed_users enable row level security;
+
+drop policy if exists "Anyone can read allowed users" on public.allowed_users;
+create policy "Anyone can read allowed users"
+  on public.allowed_users
+  for select
+  to anon, authenticated
+  using (true);
+
+drop policy if exists "Authenticated users can update own allowed user" on public.allowed_users;
+create policy "Authenticated users can update own allowed user"
+  on public.allowed_users
+  for update
+  to authenticated
+  using (
+    public.is_allowed_yowl_user()
+    and (
+      (auth.uid() is not null and auth_user_id = auth.uid())
+      or lower(email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+    )
+  )
+  with check (
+    public.is_allowed_yowl_user()
+    and (
+      (auth.uid() is not null and auth_user_id = auth.uid())
+      or lower(email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+    )
+  );
+
+create or replace function public.touch_allowed_users_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.last_online_at is distinct from old.last_online_at
+    and new.accent is not distinct from old.accent
+    and new.avatar_url is not distinct from old.avatar_url
+    and new.bio is not distinct from old.bio
+    and new.status_message is not distinct from old.status_message
+    and new.email_mfa_enabled is not distinct from old.email_mfa_enabled
+    and new.theme_mode is not distinct from old.theme_mode
+    and new.stay_logged_in is not distinct from old.stay_logged_in
+  then
+    new.updated_at = old.updated_at;
+  else
+    new.updated_at = now();
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists allowed_users_touch_updated_at on public.allowed_users;
+create trigger allowed_users_touch_updated_at
+before update on public.allowed_users
+for each row
+execute function public.touch_allowed_users_updated_at();
+
+alter table public.songs
+  add column if not exists status text not null default 'concept';
+
+update public.songs
+set status = coalesce(status, 'concept');
+
+create table if not exists public.app_build_state (
+  id text primary key default 'current',
+  build_number text not null default '2.2.0',
+  published_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.app_build_state
+  add column if not exists build_number text not null default '2.2.0';
+alter table public.app_build_state
+  add column if not exists published_at timestamptz not null default now();
+alter table public.app_build_state
+  add column if not exists created_at timestamptz not null default now();
+alter table public.app_build_state
+  add column if not exists updated_at timestamptz not null default now();
+
+grant select on table public.app_build_state to anon;
+grant select on table public.app_build_state to authenticated;
+grant insert, update on table public.app_build_state to authenticated;
+
+alter table public.app_build_state enable row level security;
+
+drop policy if exists "Anyone can read app build state" on public.app_build_state;
+create policy "Anyone can read app build state"
+  on public.app_build_state
+  for select
+  to public
+  using (true);
+
+drop policy if exists "Mattiz can publish app build state" on public.app_build_state;
+create policy "Mattiz can publish app build state"
+  on public.app_build_state
+  for insert
+  to authenticated
+  with check (public.is_mattiz_allowed_user());
+
+drop policy if exists "Mattiz can update app build state" on public.app_build_state;
+create policy "Mattiz can update app build state"
+  on public.app_build_state
+  for update
+  to authenticated
+  using (public.is_mattiz_allowed_user())
+  with check (public.is_mattiz_allowed_user());
+
+create or replace function public.handle_public_user_signup()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  next_username text := coalesce(
+    nullif(trim(new.raw_user_meta_data ->> 'username'), ''),
+    nullif(trim(new.raw_user_meta_data ->> 'display_name'), ''),
+    nullif(trim(new.raw_user_meta_data ->> 'displayName'), ''),
+    nullif(trim(new.raw_user_meta_data ->> 'name'), ''),
+    split_part(coalesce(new.email, ''), '@', 1),
+    'Bezoeker'
+  );
+  next_display_name text := coalesce(
+    nullif(trim(new.raw_user_meta_data ->> 'display_name'), ''),
+    nullif(trim(new.raw_user_meta_data ->> 'displayName'), ''),
+    nullif(trim(new.raw_user_meta_data ->> 'name'), ''),
+    next_username
+  );
+begin
+  insert into public.allowed_users (
+    id,
+    auth_user_id,
+    username,
+    email,
+    display_name,
+    birth_date,
+    accent,
+    avatar_url,
+    updated_at,
+    bio,
+    status_message,
+    email_mfa_enabled,
+    theme_mode,
+    stay_logged_in,
+    gender
+  )
+  values (
+    new.id,
+    new.id,
+    next_username,
+    coalesce(new.email, ''),
+    next_display_name,
+    coalesce(nullif(trim(new.raw_user_meta_data ->> 'birth_date'), ''), ''),
+    coalesce(nullif(trim(new.raw_user_meta_data ->> 'accent'), ''), '#72d4ff'),
+    coalesce(nullif(trim(new.raw_user_meta_data ->> 'avatar_url'), ''), ''),
+    coalesce(new.updated_at, now()),
+    coalesce(nullif(trim(new.raw_user_meta_data ->> 'bio'), ''), ''),
+    coalesce(nullif(trim(new.raw_user_meta_data ->> 'status_message'), ''), ''),
+    coalesce((new.raw_user_meta_data ->> 'email_mfa_enabled')::boolean, true),
+    coalesce(nullif(trim(new.raw_user_meta_data ->> 'theme_mode'), ''), 'system'),
+    coalesce((new.raw_user_meta_data ->> 'stay_logged_in')::boolean, true),
+    coalesce(nullif(trim(new.raw_user_meta_data ->> 'gender'), ''), 'zeg ik liever niet')
+  )
+  on conflict (id) do update
+  set
+    id = excluded.id,
+    auth_user_id = excluded.auth_user_id,
+    username = excluded.username,
+    display_name = excluded.display_name,
+    birth_date = excluded.birth_date,
+    accent = excluded.accent,
+    avatar_url = coalesce(public.allowed_users.avatar_url, excluded.avatar_url),
+    bio = coalesce(public.allowed_users.bio, excluded.bio),
+    status_message = coalesce(public.allowed_users.status_message, excluded.status_message),
+    email_mfa_enabled = coalesce(public.allowed_users.email_mfa_enabled, excluded.email_mfa_enabled),
+    theme_mode = coalesce(public.allowed_users.theme_mode, excluded.theme_mode),
+    stay_logged_in = coalesce(public.allowed_users.stay_logged_in, excluded.stay_logged_in),
+    gender = coalesce(public.allowed_users.gender, excluded.gender),
+    updated_at = now();
+  return new;
+exception
+  when others then
+    return new;
+end;
+  $$;
+
+create or replace function public.ensure_public_allowed_user()
+returns public.allowed_users
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  next_username text := coalesce(
+    nullif(trim(auth.jwt() ->> 'username'), ''),
+    nullif(trim(auth.jwt() ->> 'display_name'), ''),
+    nullif(trim(auth.jwt() ->> 'displayName'), ''),
+    split_part(coalesce(auth.jwt() ->> 'email', ''), '@', 1),
+    'Bezoeker'
+  );
+  next_display_name text := coalesce(
+    nullif(trim(auth.jwt() ->> 'display_name'), ''),
+    nullif(trim(auth.jwt() ->> 'displayName'), ''),
+    next_username
+  );
+  saved_row public.allowed_users%rowtype;
+begin
+  insert into public.allowed_users (
+    auth_user_id,
+    username,
+    email,
+    display_name,
+    birth_date,
+    accent,
+    avatar_url,
+    updated_at,
+    bio,
+    status_message,
+    email_mfa_enabled,
+    theme_mode,
+    stay_logged_in,
+    gender
+  )
+  values (
+    auth.uid(),
+    next_username,
+    coalesce(auth.jwt() ->> 'email', ''),
+    next_display_name,
+    coalesce(nullif(trim(auth.jwt() ->> 'birth_date'), ''), ''),
+    coalesce(nullif(trim(auth.jwt() ->> 'accent'), ''), '#72d4ff'),
+    coalesce(nullif(trim(auth.jwt() ->> 'avatar_url'), ''), ''),
+    now(),
+    coalesce(nullif(trim(auth.jwt() ->> 'bio'), ''), ''),
+    coalesce(nullif(trim(auth.jwt() ->> 'status_message'), ''), ''),
+    coalesce((auth.jwt() ->> 'email_mfa_enabled')::boolean, true),
+    coalesce(nullif(trim(auth.jwt() ->> 'theme_mode'), ''), 'system'),
+    coalesce((auth.jwt() ->> 'stay_logged_in')::boolean, true),
+    coalesce(nullif(trim(auth.jwt() ->> 'gender'), ''), 'zeg ik liever niet')
+  )
+  on conflict (id) do update
+  set
+    auth_user_id = coalesce(public.allowed_users.auth_user_id, excluded.auth_user_id),
+    username = excluded.username,
+    display_name = excluded.display_name,
+    birth_date = excluded.birth_date,
+    accent = excluded.accent,
+    avatar_url = coalesce(public.allowed_users.avatar_url, excluded.avatar_url),
+    bio = coalesce(public.allowed_users.bio, excluded.bio),
+    status_message = coalesce(public.allowed_users.status_message, excluded.status_message),
+    email_mfa_enabled = coalesce(public.allowed_users.email_mfa_enabled, excluded.email_mfa_enabled),
+    theme_mode = coalesce(public.allowed_users.theme_mode, excluded.theme_mode),
+    stay_logged_in = coalesce(public.allowed_users.stay_logged_in, excluded.stay_logged_in),
+    gender = coalesce(public.allowed_users.gender, excluded.gender),
+    updated_at = now()
+  returning * into saved_row;
+
+  return saved_row;
+end;
+$$;
+
+grant execute on function public.ensure_public_allowed_user() to authenticated;
+
+create or replace function public.ensure_allowed_user()
+returns public.allowed_users
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  next_username text := coalesce(
+    nullif(trim(coalesce(auth.jwt() ->> 'username', '')), ''),
+    nullif(trim(coalesce(auth.jwt() ->> 'display_name', '')), ''),
+    nullif(trim(coalesce(auth.jwt() ->> 'displayName', '')), ''),
+    split_part(coalesce(auth.jwt() ->> 'email', ''), '@', 1),
+    'Bezoeker'
+  );
+  saved_row public.allowed_users%rowtype;
+begin
+  insert into public.allowed_users (
+    auth_user_id,
+    username,
+    email,
+    display_name,
+    birth_date,
+    accent,
+    avatar_url,
+    updated_at,
+    bio,
+    status_message,
+    email_mfa_enabled,
+    theme_mode,
+    gender
+  )
+  values (
+    auth.uid(),
+    next_username,
+    coalesce(auth.jwt() ->> 'email', ''),
+    coalesce(nullif(trim(coalesce(auth.jwt() ->> 'display_name', '')), ''), next_username),
+    coalesce(nullif(trim(coalesce(auth.jwt() ->> 'birth_date', '')), ''), ''),
+    coalesce(nullif(trim(coalesce(auth.jwt() ->> 'accent', '')), ''), '#72d4ff'),
+    coalesce(nullif(trim(coalesce(auth.jwt() ->> 'avatar_url', '')), ''), ''),
+    now(),
+    coalesce(nullif(trim(coalesce(auth.jwt() ->> 'bio', '')), ''), ''),
+    coalesce((auth.jwt() ->> 'email_mfa_enabled')::boolean, true),
+    coalesce(nullif(trim(coalesce(auth.jwt() ->> 'theme_mode', '')), ''), 'system'),
+    coalesce((auth.jwt() ->> 'stay_logged_in')::boolean, true),
+    coalesce(nullif(trim(coalesce(auth.jwt() ->> 'gender', '')), ''), 'zeg ik liever niet')
+  )
+  on conflict (id) do update
+  set
+    auth_user_id = coalesce(public.allowed_users.auth_user_id, excluded.auth_user_id),
+    username = excluded.username,
+    display_name = excluded.display_name,
+    birth_date = excluded.birth_date,
+    accent = excluded.accent,
+    avatar_url = coalesce(public.allowed_users.avatar_url, excluded.avatar_url),
+    bio = coalesce(public.allowed_users.bio, excluded.bio),
+    status_message = coalesce(public.allowed_users.status_message, excluded.status_message),
+    email_mfa_enabled = coalesce(public.allowed_users.email_mfa_enabled, excluded.email_mfa_enabled),
+    theme_mode = coalesce(public.allowed_users.theme_mode, excluded.theme_mode),
+    stay_logged_in = coalesce(public.allowed_users.stay_logged_in, excluded.stay_logged_in),
+    gender = coalesce(public.allowed_users.gender, excluded.gender),
+    updated_at = now()
+  returning * into saved_row;
+
+  return saved_row;
+end;
+$$;
+
+grant execute on function public.ensure_allowed_user() to authenticated;
+
+create or replace function public.save_current_allowed_user_profile(p_payload jsonb default '{}'::jsonb)
+returns public.allowed_users
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  next_payload jsonb := coalesce(p_payload, '{}'::jsonb);
+  next_auth_user_id uuid := auth.uid();
+  next_email text := lower(coalesce(auth.jwt() ->> 'email', ''));
+  next_username text := coalesce(
+    nullif(trim(coalesce(next_payload ->> 'username', '')), ''),
+    nullif(trim(coalesce(auth.jwt() ->> 'username', '')), ''),
+    nullif(trim(coalesce(auth.jwt() ->> 'display_name', '')), ''),
+    nullif(trim(coalesce(auth.jwt() ->> 'displayName', '')), ''),
+    split_part(coalesce(auth.jwt() ->> 'email', ''), '@', 1),
+    'Bezoeker'
+  );
+  next_display_name text := coalesce(
+    nullif(trim(coalesce(next_payload ->> 'display_name', '')), ''),
+    nullif(trim(coalesce(next_payload ->> 'displayName', '')), ''),
+    nullif(trim(coalesce(next_payload ->> 'name', '')), ''),
+    next_username
+  );
+  next_row public.allowed_users%rowtype;
+begin
+  perform public.ensure_allowed_user();
+
+  update public.allowed_users
+  set
+    username = coalesce(nullif(trim(coalesce(next_payload ->> 'username', '')), ''), username),
+    display_name = coalesce(nullif(trim(coalesce(next_payload ->> 'display_name', '')), ''), nullif(trim(coalesce(next_payload ->> 'displayName', '')), ''), nullif(trim(coalesce(next_payload ->> 'name', '')), ''), display_name),
+    email = coalesce(nullif(trim(coalesce(next_payload ->> 'email', '')), ''), email),
+    avatar_url = coalesce(nullif(trim(coalesce(next_payload ->> 'avatar_url', '')), ''), avatar_url),
+    bio = coalesce(nullif(trim(coalesce(next_payload ->> 'bio', '')), ''), bio),
+    status_message = coalesce(nullif(trim(coalesce(next_payload ->> 'status_message', '')), ''), status_message),
+    theme_mode = coalesce(nullif(trim(coalesce(next_payload ->> 'theme_mode', '')), ''), theme_mode),
+    email_mfa_enabled = case
+      when next_payload ? 'email_mfa_enabled' then coalesce((next_payload ->> 'email_mfa_enabled')::boolean, email_mfa_enabled)
+      else email_mfa_enabled
+    end,
+    stay_logged_in = case
+      when next_payload ? 'stay_logged_in' then coalesce((next_payload ->> 'stay_logged_in')::boolean, stay_logged_in)
+      else stay_logged_in
+    end,
+    gender = coalesce(nullif(trim(coalesce(next_payload ->> 'gender', '')), ''), gender),
+    updated_at = now()
+  where (next_auth_user_id is not null and auth_user_id = next_auth_user_id)
+     or (next_email <> '' and lower(email) = next_email)
+  returning * into next_row;
+
+  if found then
+    return next_row;
+  end if;
+
+  insert into public.allowed_users (
+    auth_user_id,
+    username,
+    email,
+    display_name,
+    birth_date,
+    accent,
+    avatar_url,
+    updated_at,
+    bio,
+    status_message,
+    email_mfa_enabled,
+    theme_mode,
+    stay_logged_in,
+    gender
+  ) values (
+    next_auth_user_id,
+    next_username,
+    coalesce(next_email, ''),
+    next_display_name,
+    coalesce(nullif(trim(coalesce(next_payload ->> 'birth_date', '')), ''), ''),
+    coalesce(nullif(trim(coalesce(next_payload ->> 'accent', '')), ''), '#72d4ff'),
+    coalesce(nullif(trim(coalesce(next_payload ->> 'avatar_url', '')), ''), ''),
+    now(),
+    coalesce(nullif(trim(coalesce(next_payload ->> 'bio', '')), ''), ''),
+    coalesce(nullif(trim(coalesce(next_payload ->> 'status_message', '')), ''), ''),
+    case
+      when next_payload ? 'email_mfa_enabled' then coalesce((next_payload ->> 'email_mfa_enabled')::boolean, true)
+      else true
+    end,
+    coalesce(nullif(trim(coalesce(next_payload ->> 'theme_mode', '')), ''), 'system'),
+    case
+      when next_payload ? 'stay_logged_in' then coalesce((next_payload ->> 'stay_logged_in')::boolean, true)
+      else true
+    end,
+    coalesce(nullif(trim(coalesce(next_payload ->> 'gender', '')), ''), 'zeg ik liever niet')
+  )
+  on conflict (id) do update
+  set
+    auth_user_id = coalesce(public.allowed_users.auth_user_id, excluded.auth_user_id),
+    username = excluded.username,
+    display_name = excluded.display_name,
+    birth_date = excluded.birth_date,
+    accent = excluded.accent,
+    avatar_url = coalesce(public.allowed_users.avatar_url, excluded.avatar_url),
+    bio = coalesce(public.allowed_users.bio, excluded.bio),
+    status_message = coalesce(public.allowed_users.status_message, excluded.status_message),
+    email_mfa_enabled = coalesce(public.allowed_users.email_mfa_enabled, excluded.email_mfa_enabled),
+    theme_mode = coalesce(public.allowed_users.theme_mode, excluded.theme_mode),
+    stay_logged_in = coalesce(public.allowed_users.stay_logged_in, excluded.stay_logged_in),
+    gender = coalesce(public.allowed_users.gender, excluded.gender),
+    updated_at = now()
+  returning * into next_row;
+
+  return next_row;
+end;
+$$;
+
+grant execute on function public.save_current_allowed_user_profile(jsonb) to authenticated;
+
+drop trigger if exists public_user_signup_allowed_users on auth.users;
+create trigger public_user_signup_allowed_users
+after insert on auth.users
+for each row
+execute function public.handle_public_user_signup();
+
+insert into storage.buckets (id, name, public)
+values ('covers', 'covers', true)
+on conflict (id) do update
+set public = excluded.public;
+
+insert into storage.buckets (id, name, public)
+values ('audio', 'audio', true)
+on conflict (id) do update
+set public = excluded.public;
+
+insert into storage.buckets (id, name, public)
+values ('media', 'media', true)
+on conflict (id) do update
+set public = excluded.public;
+
+insert into storage.buckets (id, name, public)
+values ('app-updates', 'app-updates', true)
+on conflict (id) do update
+set public = excluded.public;
+
+drop policy if exists "Public read covers" on storage.objects;
+create policy "Public read covers"
+  on storage.objects
+  for select
+  using (bucket_id = 'covers');
+
+drop policy if exists "Authenticated upload covers" on storage.objects;
+create policy "Authenticated upload covers"
+  on storage.objects
+  for insert
+  to authenticated
+  with check (bucket_id = 'covers' and public.is_mattiz_allowed_user());
+
+drop policy if exists "Authenticated update covers" on storage.objects;
+create policy "Authenticated update covers"
+  on storage.objects
+  for update
+  to authenticated
+  using (bucket_id = 'covers' and public.is_mattiz_allowed_user())
+  with check (bucket_id = 'covers' and public.is_mattiz_allowed_user());
+
+drop policy if exists "Authenticated delete covers" on storage.objects;
+create policy "Authenticated delete covers"
+  on storage.objects
+  for delete
+  to authenticated
+  using (bucket_id = 'covers' and public.is_mattiz_allowed_user());
+
+drop policy if exists "Public read audio" on storage.objects;
+create policy "Public read audio"
+  on storage.objects
+  for select
+  using (bucket_id = 'audio');
+
+drop policy if exists "Authenticated upload audio" on storage.objects;
+create policy "Authenticated upload audio"
+  on storage.objects
+  for insert
+  to authenticated
+  with check (bucket_id = 'audio' and public.is_allowed_yowl_user());
+
+drop policy if exists "Authenticated update audio" on storage.objects;
+create policy "Authenticated update audio"
+  on storage.objects
+  for update
+  to authenticated
+  using (bucket_id = 'audio' and public.is_allowed_yowl_user())
+  with check (bucket_id = 'audio' and public.is_allowed_yowl_user());
+
+drop policy if exists "Authenticated delete audio" on storage.objects;
+create policy "Authenticated delete audio"
+  on storage.objects
+  for delete
+  to authenticated
+  using (bucket_id = 'audio' and public.is_allowed_yowl_user());
+
+drop policy if exists "Public read media" on storage.objects;
+create policy "Public read media"
+  on storage.objects
+  for select
+  using (bucket_id = 'media');
+
+drop policy if exists "Authenticated upload media" on storage.objects;
+create policy "Authenticated upload media"
+  on storage.objects
+  for insert
+  to authenticated
+  with check (bucket_id = 'media' and public.is_allowed_yowl_user());
+
+drop policy if exists "Authenticated update media" on storage.objects;
+create policy "Authenticated update media"
+  on storage.objects
+  for update
+  to authenticated
+  using (bucket_id = 'media' and public.is_allowed_yowl_user())
+  with check (bucket_id = 'media' and public.is_allowed_yowl_user());
+
+drop policy if exists "Authenticated delete media" on storage.objects;
+create policy "Authenticated delete media"
+  on storage.objects
+  for delete
+  to authenticated
+  using (bucket_id = 'media' and public.is_allowed_yowl_user());
+
+drop policy if exists "Public read app updates" on storage.objects;
+create policy "Public read app updates"
+  on storage.objects
+  for select
+  using (bucket_id = 'app-updates');
+
+drop policy if exists "Mattiz upload app updates" on storage.objects;
+create policy "Mattiz upload app updates"
+  on storage.objects
+  for insert
+  to authenticated
+  with check (bucket_id = 'app-updates' and public.is_mattiz_allowed_user());
+
+drop policy if exists "Mattiz update app updates" on storage.objects;
+create policy "Mattiz update app updates"
+  on storage.objects
+  for update
+  to authenticated
+  using (bucket_id = 'app-updates' and public.is_mattiz_allowed_user())
+  with check (bucket_id = 'app-updates' and public.is_mattiz_allowed_user());
+
+drop policy if exists "Mattiz delete app updates" on storage.objects;
+create policy "Mattiz delete app updates"
+  on storage.objects
+  for delete
+  to authenticated
+  using (bucket_id = 'app-updates' and public.is_mattiz_allowed_user());
+
+insert into public.app_build_state (id, build_number)
+values ('current', '2.2.0')
+on conflict (id) do update
+set build_number = coalesce(public.app_build_state.build_number, excluded.build_number),
+    updated_at = now();
+
+create or replace function public.touch_app_build_state_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists app_build_state_touch_updated_at on public.app_build_state;
+create trigger app_build_state_touch_updated_at
+before update on public.app_build_state
+for each row
+execute function public.touch_app_build_state_updated_at();
+
+create table if not exists public.app_info_blocks (
+  id text primary key default 'current',
+  title text not null default '',
+  body text not null default '',
+  text_color text not null default '',
+  is_active boolean not null default true,
+  published_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.app_info_blocks
+  add column if not exists text_color text not null default '';
+
+grant select on table public.app_info_blocks to anon;
+grant select on table public.app_info_blocks to authenticated;
+grant insert, update, delete on table public.app_info_blocks to authenticated;
+
+alter table public.app_info_blocks enable row level security;
+
+drop policy if exists "Anyone can read app info blocks" on public.app_info_blocks;
+create policy "Anyone can read app info blocks"
+  on public.app_info_blocks
+  for select
+  to public
+  using (true);
+
+drop policy if exists "Mattiz can publish app info blocks" on public.app_info_blocks;
+create policy "Mattiz can publish app info blocks"
+  on public.app_info_blocks
+  for insert
+  to authenticated
+  with check (public.is_mattiz_allowed_user());
+
+drop policy if exists "Mattiz can update app info blocks" on public.app_info_blocks;
+create policy "Mattiz can update app info blocks"
+  on public.app_info_blocks
+  for update
+  to authenticated
+  using (public.is_mattiz_allowed_user())
+  with check (public.is_mattiz_allowed_user());
+
+drop policy if exists "Mattiz can delete app info blocks" on public.app_info_blocks;
+create policy "Mattiz can delete app info blocks"
+  on public.app_info_blocks
+  for delete
+  to authenticated
+  using (public.is_mattiz_allowed_user());
+
+create table if not exists public.music_releases (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  artist_name text not null default 'YOWLMAFFIA',
+  spotify_url text not null,
+  cover_url text not null default '',
+  cover_storage_path text not null default '',
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.music_releases
+  add column if not exists title text not null default 'Onbekende release';
+alter table public.music_releases
+  add column if not exists artist_name text not null default 'YOWLMAFFIA';
+alter table public.music_releases
+  add column if not exists spotify_url text not null default 'https://open.spotify.com';
+alter table public.music_releases
+  add column if not exists cover_url text not null default '';
+alter table public.music_releases
+  add column if not exists cover_storage_path text not null default '';
+alter table public.music_releases
+  add column if not exists sort_order integer not null default 0;
+alter table public.music_releases
+  add column if not exists created_at timestamptz not null default now();
+alter table public.music_releases
+  add column if not exists updated_at timestamptz not null default now();
+
+grant select on table public.music_releases to anon;
+grant select on table public.music_releases to authenticated;
+grant insert, update, delete on table public.music_releases to authenticated;
+
+alter table public.music_releases enable row level security;
+
+drop policy if exists "Anyone can read music releases" on public.music_releases;
+create policy "Anyone can read music releases"
+  on public.music_releases
+  for select
+  to public
+  using (true);
+
+drop policy if exists "Mattiz can publish music releases" on public.music_releases;
+create policy "Mattiz can publish music releases"
+  on public.music_releases
+  for insert
+  to authenticated
+  with check (public.is_mattiz_allowed_user());
+
+drop policy if exists "Mattiz can update music releases" on public.music_releases;
+create policy "Mattiz can update music releases"
+  on public.music_releases
+  for update
+  to authenticated
+  using (public.is_mattiz_allowed_user())
+  with check (public.is_mattiz_allowed_user());
+
+drop policy if exists "Mattiz can delete music releases" on public.music_releases;
+create policy "Mattiz can delete music releases"
+  on public.music_releases
+  for delete
+  to authenticated
+  using (public.is_mattiz_allowed_user());
+
+create table if not exists public.app_social_links (
+  platform text primary key,
+  label text not null,
+  url text not null default '',
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.app_social_links
+  add column if not exists label text not null default 'Social';
+alter table public.app_social_links
+  add column if not exists url text not null default '';
+alter table public.app_social_links
+  add column if not exists sort_order integer not null default 0;
+alter table public.app_social_links
+  add column if not exists created_at timestamptz not null default now();
+alter table public.app_social_links
+  add column if not exists updated_at timestamptz not null default now();
+
+grant select on table public.app_social_links to anon;
+grant select on table public.app_social_links to authenticated;
+grant insert, update, delete on table public.app_social_links to authenticated;
+
+alter table public.app_social_links enable row level security;
+
+drop policy if exists "Anyone can read social links" on public.app_social_links;
+create policy "Anyone can read social links"
+  on public.app_social_links
+  for select
+  to anon, authenticated
+  using (true);
+
+drop policy if exists "Mattiz can insert social links" on public.app_social_links;
+create policy "Mattiz can insert social links"
+  on public.app_social_links
+  for insert
+  to authenticated
+  with check (public.is_mattiz_allowed_user());
+
+drop policy if exists "Mattiz can update social links" on public.app_social_links;
+create policy "Mattiz can update social links"
+  on public.app_social_links
+  for update
+  to authenticated
+  using (public.is_mattiz_allowed_user())
+  with check (public.is_mattiz_allowed_user());
+
+drop policy if exists "Mattiz can delete social links" on public.app_social_links;
+create policy "Mattiz can delete social links"
+  on public.app_social_links
+  for delete
+  to authenticated
+  using (public.is_mattiz_allowed_user());
+
+create table if not exists public.app_chat_state (
+  id text primary key,
+  last_public_chat_reset_on date not null default (now() at time zone 'Europe/Brussels')::date,
+  updated_at timestamptz not null default now()
+);
+
+grant select on table public.app_chat_state to authenticated;
+grant insert, update on table public.app_chat_state to authenticated;
+
+alter table public.app_chat_state enable row level security;
+
+drop policy if exists "Allowed users can read chat state" on public.app_chat_state;
+create policy "Allowed users can read chat state"
+  on public.app_chat_state
+  for select
+  to authenticated
+  using (public.is_allowed_yowl_user());
+
+drop policy if exists "Allowed users can update chat state" on public.app_chat_state;
+create policy "Allowed users can update chat state"
+  on public.app_chat_state
+  for update
+  to authenticated
+  using (public.is_allowed_yowl_user())
+  with check (public.is_allowed_yowl_user());
+
+drop policy if exists "Allowed users can insert chat state" on public.app_chat_state;
+create policy "Allowed users can insert chat state"
+  on public.app_chat_state
+  for insert
+  to authenticated
+  with check (public.is_allowed_yowl_user());
+
+insert into public.app_chat_state (id)
+values ('public')
+on conflict (id) do nothing;
+
+create or replace function public.clear_public_chat_messages()
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_brussels_day date := (now() at time zone 'Europe/Brussels')::date;
+  last_reset_day date;
+  did_clear boolean := false;
+begin
+  if not public.is_allowed_yowl_user() then
+    raise exception 'Alleen toegelaten public users mogen de public chat resetten.';
+  end if;
+
+  insert into public.app_chat_state (id, last_public_chat_reset_on, updated_at)
+  values ('public', current_brussels_day, now())
+  on conflict (id) do nothing;
+
+  select last_public_chat_reset_on
+  into last_reset_day
+  from public.app_chat_state
+  where id = 'public'
+  for update;
+
+  if last_reset_day is null or last_reset_day < current_brussels_day then
+    delete from public.messages
+    where room_key = 'public'
+       or scope = 'public';
+
+    update public.app_chat_state
+    set
+      last_public_chat_reset_on = current_brussels_day,
+      updated_at = now()
+    where id = 'public';
+
+    did_clear := true;
+  end if;
+
+  return did_clear;
+end;
+$$;
+
+grant execute on function public.clear_public_chat_messages() to authenticated;
+
+create or replace function public.upsert_music_release(
+  p_id uuid,
+  p_title text,
+  p_artist_name text,
+  p_spotify_url text,
+  p_cover_url text,
+  p_cover_storage_path text,
+  p_sort_order integer default 0
+)
+returns public.music_releases
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  saved_release public.music_releases%rowtype;
+begin
+  if not public.is_mattiz_allowed_user() then
+    raise exception 'Alleen Mattiz mag muziekbanners beheren.';
+  end if;
+
+  insert into public.music_releases (
+    id,
+    title,
+    artist_name,
+    spotify_url,
+    cover_url,
+    cover_storage_path,
+    sort_order,
+    updated_at
+  )
+  values (
+    coalesce(p_id, gen_random_uuid()),
+    coalesce(nullif(trim(coalesce(p_title, '')), ''), 'Onbekende release'),
+    coalesce(nullif(trim(coalesce(p_artist_name, '')), ''), 'YOWLMAFFIA'),
+    coalesce(nullif(trim(coalesce(p_spotify_url, '')), ''), 'https://open.spotify.com'),
+    coalesce(p_cover_url, ''),
+    coalesce(p_cover_storage_path, ''),
+    coalesce(p_sort_order, 0),
+    now()
+  )
+  on conflict (id) do update set
+    title = excluded.title,
+    artist_name = excluded.artist_name,
+    spotify_url = excluded.spotify_url,
+    cover_url = excluded.cover_url,
+    cover_storage_path = excluded.cover_storage_path,
+    sort_order = excluded.sort_order,
+    updated_at = now()
+  returning * into saved_release;
+
+  return saved_release;
+end;
+$$;
+
+grant execute on function public.upsert_music_release(uuid, text, text, text, text, text, integer) to authenticated;
+
+create or replace function public.delete_music_release(p_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_mattiz_allowed_user() then
+    raise exception 'Alleen Mattiz mag muziekbanners verwijderen.';
+  end if;
+
+  delete from public.music_releases
+  where id = p_id;
+end;
+$$;
+
+grant execute on function public.delete_music_release(uuid) to authenticated;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.app_info_blocks;
+  alter publication supabase_realtime add table public.app_build_state;
+exception
+  when duplicate_object then null;
+end $$;
+
+drop policy if exists "Authenticated users can read messages" on public.messages;
+create policy "Authenticated users can read messages"
+  on public.messages
+  for select
+  to authenticated
+  using (
+    public.is_allowed_yowl_user()
+    and (
+      scope = 'public'
+      or scope = 'team'
+      or lower(sender) = lower(public.current_allowed_username())
+      or lower(coalesce(recipient, '')) = lower(public.current_allowed_username())
+    )
+  );
+
+drop policy if exists "Authenticated users can insert messages" on public.messages;
+create policy "Authenticated users can insert messages"
+  on public.messages
+  for insert
+  to authenticated
+  with check (public.is_allowed_yowl_user());
+
+drop policy if exists "Authenticated users can update messages" on public.messages;
+create policy "Authenticated users can update messages"
+  on public.messages
+  for update
+  to authenticated
+  using (
+    public.is_allowed_yowl_user()
+    and lower(sender) = lower(public.current_allowed_username())
+  )
+  with check (
+    public.is_allowed_yowl_user()
+    and lower(sender) = lower(public.current_allowed_username())
+  );
+
+drop policy if exists "Authenticated users can delete messages" on public.messages;
+create policy "Authenticated users can delete messages"
+  on public.messages
+  for delete
+  to authenticated
+  using (
+    public.is_allowed_yowl_user()
+    and lower(sender) = lower(public.current_allowed_username())
+  );
+
+alter table public.messages
+  add column if not exists reply_to_message_id uuid;
+alter table public.messages
+  add column if not exists reply_to_sender text;
+alter table public.messages
+  add column if not exists reply_to_body text;
+alter table public.messages
+  add column if not exists reply_to_created_at timestamptz;
+
+
+NOTIFY pgrst, 'reload schema';
