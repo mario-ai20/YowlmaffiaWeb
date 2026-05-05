@@ -33,6 +33,7 @@ export default function AppShell({
   const [themeMode, setThemeMode] = useState(user?.theme_mode || 'system');
   const [nowTick, setNowTick] = useState(() => Date.now());
   const isMattiz = isMattizAllowedUser(user);
+  const isWebApp = typeof window !== 'undefined' && !window.desktop;
 
   const headerDateTime = useMemo(() => {
     try {
@@ -110,7 +111,7 @@ export default function AppShell({
   }, []);
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${isWebApp ? 'app-shell--web' : ''}`.trim()}>
       <header className="app-shell__header">
         <BrandMark />
 
