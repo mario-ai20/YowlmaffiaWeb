@@ -3864,8 +3864,9 @@ a {
 .public-manage__grid {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: 1rem;
+  gap: 1.1rem;
   align-items: start;
+  grid-auto-flow: dense;
 }
 
 .public-social {
@@ -4105,16 +4106,26 @@ a {
 .public-manage__card {
   display: grid;
   gap: 1rem;
-  padding: 1.15rem;
+  padding: 1.2rem;
   min-width: 0;
 }
 
+.public-manage__card--alert {
+  grid-column: span 5;
+  align-self: stretch;
+}
+
+.public-manage__card--alert-only {
+  grid-column: span 12;
+  max-width: 760px;
+}
+
 .public-manage__card--build {
-  grid-column: span 4;
+  grid-column: span 3;
 }
 
 .public-manage__card--info {
-  grid-column: span 8;
+  grid-column: span 9;
 }
 
 .public-manage__card--updates {
@@ -4211,6 +4222,40 @@ a {
 
 .public-manage__actions .button {
   min-width: min(100%, 240px);
+}
+
+.public-manage__staff-banner {
+  display: grid;
+  gap: 0.7rem;
+  padding: 1rem 1.05rem;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 86, 116, 0.34);
+  background:
+    linear-gradient(180deg, rgba(88, 10, 22, 0.9), rgba(40, 0, 8, 0.92)),
+    color-mix(in srgb, var(--surface) 72%, transparent);
+  box-shadow:
+    0 0 0 1px rgba(255, 220, 226, 0.05) inset,
+    0 14px 32px rgba(0, 0, 0, 0.18),
+    0 0 24px rgba(255, 42, 87, 0.12);
+}
+
+.public-manage__staff-badge {
+  width: fit-content;
+  padding: 0.46rem 0.78rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 132, 154, 0.34);
+  background: rgba(255, 245, 247, 0.08);
+  color: #ffe3e8;
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.public-manage__staff-note {
+  margin: 0;
+  color: rgba(255, 240, 244, 0.88);
+  line-height: 1.65;
 }
 
 .public-manage__preview {
@@ -5015,6 +5060,8 @@ textarea {
   }
 
   .public-manage__card--build,
+  .public-manage__card--alert,
+  .public-manage__card--alert-only,
   .public-manage__card--info,
   .public-manage__card--updates,
   .public-manage__card--music {

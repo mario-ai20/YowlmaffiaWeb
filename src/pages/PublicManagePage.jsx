@@ -73,6 +73,7 @@ export default function PublicManagePage() {
 
   const isMattiz = isMattizPublicUser(currentUser);
   const canSendAlerts = canManagePublicAlerts(currentUser);
+  const alertOnlyManager = canSendAlerts && !isMattiz;
 
   function normalizeBuildState(row = null) {
     return {
@@ -645,10 +646,22 @@ export default function PublicManagePage() {
 
         <div className="public-manage__grid">
           {canSendAlerts ? (
-            <form className="panel public-manage__card" onSubmit={handleSendStaffAlert}>
+            <form
+              className={`panel public-manage__card public-manage__card--alert ${alertOnlyManager ? 'public-manage__card--alert-only' : ''}`.trim()}
+              onSubmit={handleSendStaffAlert}
+            >
               <div className="panel__header panel__header--compact">
                 <span className="eyebrow">Staff alert</span>
-                <h2>Rode melding als YOWLMAFFIA</h2>
+                <h2>{alertOnlyManager ? 'Alert versturen als staff' : 'Rode melding als YOWLMAFFIA'}</h2>
+              </div>
+
+              <div className="public-manage__staff-banner">
+                <div className="public-manage__staff-badge">YOWLMAFFIA STAFF</div>
+                <p className="public-manage__staff-note">
+                  {alertOnlyManager
+                    ? 'Jij kan hier alleen staff alerts sturen. De rest van de publieke beheeropties blijft verborgen.'
+                    : 'Deze melding verschijnt opvallend rood in de public chat en wordt verzonden als YOWLMAFFIA.'}
+                </p>
               </div>
 
               <label className="field">
@@ -660,14 +673,16 @@ export default function PublicManagePage() {
                   placeholder="Typ hier een belangrijke staffmelding voor de public chat."
                 />
                 <small className="settings-menu__hint">
-                  Deze melding komt in de public chat als <strong>YOWLMAFFIA</strong> met rode alert-styling.
+                  Gebruik dit alleen voor belangrijke staffmeldingen die meteen goed zichtbaar moeten zijn.
                 </small>
               </label>
 
-              <button className="button button--primary" type="submit" disabled={saving}>
-                <Save size={16} />
-                {saving ? 'Versturen...' : 'Alert versturen'}
-              </button>
+              <div className="public-manage__actions">
+                <button className="button button--primary" type="submit" disabled={saving}>
+                  <Save size={16} />
+                  {saving ? 'Versturen...' : 'Alert versturen'}
+                </button>
+              </div>
             </form>
           ) : null}
 
