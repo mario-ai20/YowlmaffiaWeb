@@ -8,6 +8,12 @@ const MATTIZ_PUBLIC_NAMES = new Set([
   'mattizhoornaert96',
   'mattiz hoornaert'
 ]);
+const YOSHI_PUBLIC_EMAIL = 'bastiaenssens.yoshi@gmail.com';
+const YOSHI_PUBLIC_NAMES = new Set([
+  'yoshi',
+  'bastiaenssens yoshi',
+  'yoshi bastiaenssens'
+]);
 
 export const DEFAULT_PUBLIC_USERS = [
   {
@@ -109,6 +115,42 @@ export function isMattizPublicUser(user) {
   ];
 
   return candidateValues.some((value) => matchesMattizPublicIdentity(value));
+}
+
+function matchesYoshiPublicIdentity(value = '') {
+  const normalized = normalizePublicUsername(value);
+  if (!normalized) {
+    return false;
+  }
+
+  if (normalized === normalizePublicUsername(YOSHI_PUBLIC_EMAIL)) {
+    return true;
+  }
+
+  if (YOSHI_PUBLIC_NAMES.has(normalized)) {
+    return true;
+  }
+
+  return normalized.includes('yoshi');
+}
+
+export function isYoshiPublicUser(user) {
+  const candidateValues = [
+    user?.auth_user_id,
+    user?.id,
+    user?.user_id,
+    user?.email,
+    user?.username,
+    user?.displayName,
+    user?.display_name,
+    user?.name
+  ];
+
+  return candidateValues.some((value) => matchesYoshiPublicIdentity(value));
+}
+
+export function canManagePublicAlerts(user) {
+  return isMattizPublicUser(user) || isYoshiPublicUser(user);
 }
 
 function normalizeThemeMode(value) {

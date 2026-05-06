@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import BrandMark from './BrandMark';
 import UserAvatar from './UserAvatar';
 import { getPublicBuildState, subscribeToPublicBuildState } from '../utils/publicBuildInfo';
-import { ensurePublicAllowedUserRow, getPublicUserDisplayLabel, isMattizPublicUser, updatePublicAllowedUserRow } from '../utils/publicUsers';
+import { canManagePublicAlerts, ensurePublicAllowedUserRow, getPublicUserDisplayLabel, isMattizPublicUser, updatePublicAllowedUserRow } from '../utils/publicUsers';
 import { publicChatSupabase } from '../utils/supabase';
 
 function resolveThemeMode(mode) {
@@ -35,6 +35,7 @@ export default function PublicShell({
   const location = useLocation();
   const navigate = useNavigate();
   const isMattiz = isMattizPublicUser(user);
+  const canManageAlerts = canManagePublicAlerts(user);
   const isWebApp = typeof window !== 'undefined' && !window.desktop;
 
   const headerDateTime = useMemo(() => {
@@ -105,7 +106,7 @@ export default function PublicShell({
   useEffect(() => {
     const timer = window.setInterval(() => {
       setNowTick(Date.now());
-    }, 30000);
+    }, 1800000);
 
     return () => window.clearInterval(timer);
   }, []);
@@ -258,7 +259,7 @@ export default function PublicShell({
             <Share2 size={16} />
             Social
           </NavLink>
-          {isMattiz ? (
+          {canManageAlerts ? (
             <NavLink end to="/public/beheren" className={({ isActive }) => `nav-link nav-link--ghost ${isActive ? 'is-active' : ''}`.trim()}>
               <ShieldEllipsis size={16} />
               Beheren

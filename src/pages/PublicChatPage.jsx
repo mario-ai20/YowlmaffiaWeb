@@ -64,11 +64,13 @@ function getPublicChatIdentitySet(user) {
 
 function isPublicChatOwnMessage(message, currentUser, allowedUsers = []) {
   const senderLabel = String(message?.sender || '').trim();
+  const isAlertMessage = String(message?.attachment_type || '').trim() === 'application/x-yowlmaffia-alert';
   const senderUser = findPublicAllowedUser(senderLabel, allowedUsers);
   const currentKeys = getPublicChatIdentitySet(currentUser);
   const senderKeys = new Set(
     [
       senderLabel,
+      isAlertMessage ? message?.recipient : '',
       senderUser?.auth_user_id,
       senderUser?.id,
       senderUser?.username,
@@ -99,7 +101,7 @@ function RelativeTimeText({ value }) {
 
     const timer = window.setInterval(() => {
       setTick(Date.now());
-    }, 30000);
+    }, 1800000);
 
     return () => window.clearInterval(timer);
   }, [value]);
@@ -150,6 +152,7 @@ export default function PublicChatPage() {
 
   function createFallbackSenderProfile(sender = '') {
     const nextLabel = String(sender || 'Onbekend').trim() || 'Onbekend';
+    const isAlertProfile = normalizePublicUsername(nextLabel) === 'yowlmaffia';
     return {
       id: nextLabel,
       auth_user_id: '',
@@ -159,7 +162,7 @@ export default function PublicChatPage() {
       email: '',
       birth_date: '',
       email_mfa_enabled: true,
-      accent: '#72d4ff',
+      accent: isAlertProfile ? '#ff445f' : '#72d4ff',
       avatar_url: '',
       updated_at: '',
       last_online_at: '',
@@ -327,7 +330,7 @@ export default function PublicChatPage() {
   useEffect(() => {
     const timer = window.setInterval(() => {
       setPresenceTick(Date.now());
-    }, 30000);
+    }, 1800000);
 
     return () => window.clearInterval(timer);
   }, []);
@@ -636,11 +639,12 @@ export default function PublicChatPage() {
                   const senderUser = findPublicAllowedUser(senderLabel, allowedUsers) || null;
                   const senderProfile = senderUser || createFallbackSenderProfile(senderLabel);
                   const isOwnMessage = isPublicChatOwnMessage(message, currentUser, allowedUsers);
+                  const isAlertMessage = String(message.attachment_type || '').trim() === 'application/x-yowlmaffia-alert';
                   const replySource = message.reply_to_sender || '';
                   const attachmentPreview = getAttachmentPreview(message.attachment_url, message.attachment_type, message.body || 'attachment');
 
                   return (
-                    <article key={message.id} className={`public-chat__message ${isOwnMessage ? 'is-own' : ''}`}>
+                    <article key={message.id} className={`public-chat__message ${isOwnMessage ? 'is-own' : ''} ${isAlertMessage ? 'is-alert' : ''}`.trim()}>
                       <button className="public-chat__message-avatar" type="button" onClick={() => openProfile(senderProfile)}>
                         <UserAvatar user={senderProfile} name={senderLabel} size={40} showDot />
                       </button>
@@ -648,7 +652,7 @@ export default function PublicChatPage() {
                       <div className="public-chat__message-body">
                         <div className="public-chat__message-meta">
                           <button className="public-chat__message-name" type="button" onClick={() => openProfile(senderProfile)}>
-                            {getPublicUserDisplayLabel(senderProfile)}
+                            {isAlertMessage ? 'YOWLMAFFIA' : getPublicUserDisplayLabel(senderProfile)}
                           </button>
                           <span className="public-chat__message-time">
                             <RelativeTimeText value={message.created_at} />

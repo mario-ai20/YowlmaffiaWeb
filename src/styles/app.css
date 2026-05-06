@@ -3415,6 +3415,21 @@ a {
   min-height: auto;
 }
 
+@keyframes public-alert-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(255, 82, 110, 0.18),
+      0 0 18px rgba(255, 33, 74, 0.12);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(255, 92, 120, 0.42),
+      0 0 30px rgba(255, 40, 83, 0.32);
+  }
+}
+
 .public-shell::before,
 .public-shell::after {
   content: '';
@@ -4358,6 +4373,40 @@ a {
 
 .public-chat__message.is-own .public-chat__actions {
   justify-content: flex-end;
+}
+
+.public-chat__message.is-alert {
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(120, 8, 24, 0.88) 0%, rgba(54, 0, 10, 0.94) 100%)
+    padding-box;
+  border-color: rgba(255, 88, 114, 0.85);
+  box-shadow:
+    0 0 0 1px rgba(255, 82, 110, 0.22),
+    0 0 24px rgba(255, 33, 74, 0.18);
+  animation: public-alert-pulse 1.15s ease-in-out infinite;
+}
+
+.public-chat__message.is-alert .public-chat__message-name,
+.public-chat__message.is-alert .public-chat__message-text,
+.public-chat__message.is-alert .public-chat__message-time {
+  color: #fff5f7;
+}
+
+.public-chat__message.is-alert .public-chat__actions .button {
+  border-color: rgba(255, 98, 123, 0.4);
+}
+
+.public-chat__message.is-alert::after {
+  content: 'STAFF ALERT';
+  position: absolute;
+  top: 0.75rem;
+  right: 0.9rem;
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  color: #ffd8df;
+  opacity: 0.9;
 }
 
 .public-chat__message-avatar {

@@ -6,6 +6,7 @@ import PublicShell from '../components/PublicShell';
 import RichTextContent from '../components/RichTextContent';
 import { publicChatSupabase, isPublicChatSupabaseConfigured } from '../utils/supabase';
 import {
+  canManagePublicAlerts,
   isMattizPublicUser,
   loadPublicAllowedUsers,
   resolvePublicUserFromSession
@@ -68,8 +69,10 @@ export default function PublicManagePage() {
   const [musicCoverPreview, setMusicCoverPreview] = useState('');
   const [musicReleases, setMusicReleases] = useState([]);
   const [socialLinks, setSocialLinks] = useState(createDefaultSocialLinks());
+  const [alertBody, setAlertBody] = useState('');
 
   const isMattiz = isMattizPublicUser(currentUser);
+  const canSendAlerts = canManagePublicAlerts(currentUser);
 
   function normalizeBuildState(row = null) {
     return {
@@ -153,7 +156,7 @@ export default function PublicManagePage() {
   }, [musicCoverFile]);
 
   useEffect(() => {
-    if (!currentUser || !isMattiz || !isPublicChatSupabaseConfigured || !publicChatSupabase) {
+    if (!currentUser || (!isMattiz && !canSendAlerts) || !isPublicChatSupabaseConfigured || !publicChatSupabase) {
       setLoadingPage(false);
       return undefined;
     }
@@ -248,7 +251,7 @@ export default function PublicManagePage() {
       publicChatSupabase.removeChannel(musicChannel);
       publicChatSupabase.removeChannel(socialChannel);
     };
-  }, [currentUser, isMattiz]);
+  }, [currentUser, isMattiz, canSendAlerts]);
 
   const statusText = useMemo(() => (latestUpdate ? 'Nieuwe update beschikbaar' : 'Alles bijgewerkt'), [latestUpdate]);
 
@@ -546,6 +549,55 @@ export default function PublicManagePage() {
     }
   }
 
+  async function handleSendStaffAlert(event) {
+    event.preventDefault();
+
+    if (!publicChatSupabase || !canSendAlerts || !currentUser) {
+      return;
+    }
+
+    const nextAlertBody = String(alertBody || '').trim();
+    if (!nextAlertBody) {
+      setError('Typ eerst een alertbericht.');
+      return;
+    }
+
+    setSaving(true);
+    setMessage('');
+    setError('');
+
+    try {
+      const ownerUsername =
+        String(currentUser.username || currentUser.displayName || currentUser.name || currentUser.email || '').trim() || 'staff';
+
+      const payload = {
+        scope: 'public',
+        room_key: 'public',
+        sender: 'YOWLMAFFIA',
+        recipient: ownerUsername,
+        body: nextAlertBody,
+        attachment_url: null,
+        attachment_type: 'application/x-yowlmaffia-alert',
+        reply_to_message_id: null,
+        reply_to_sender: null,
+        reply_to_body: null,
+        reply_to_created_at: null
+      };
+
+      const { error: insertError } = await publicChatSupabase.from('messages').insert(payload);
+      if (insertError) {
+        throw insertError;
+      }
+
+      setAlertBody('');
+      setMessage('Staff alert verzonden als YOWLMAFFIA.');
+    } catch (alertError) {
+      setError(alertError?.message || 'Alert versturen mislukt.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (loadingAuth) {
     return (
       <section className="public-page">
@@ -563,7 +615,7 @@ export default function PublicManagePage() {
     return <Navigate to="/" replace />;
   }
 
-  if (!isMattiz) {
+  if (!isMattiz && !canSendAlerts) {
     return <Navigate to="/public/dashboard" replace />;
   }
 
@@ -576,7 +628,9 @@ export default function PublicManagePage() {
               <span className="eyebrow">Beheren</span>
               <h1>Publieke content beheren</h1>
               <p>
-                Hier beheer je alleen de publieke kant: info, regels, updates en Spotify-banners. Alles blijft online in de public Supabase-database.
+                {isMattiz
+                  ? 'Hier beheer je alleen de publieke kant: info, regels, updates, staff alerts en Spotify-banners.'
+                  : 'Hier kan je alleen staff alerts sturen naar de public chat als YOWLMAFFIA.'}
               </p>
             </div>
           </div>
@@ -590,6 +644,35 @@ export default function PublicManagePage() {
         </header>
 
         <div className="public-manage__grid">
+          {canSendAlerts ? (
+            <form className="panel public-manage__card" onSubmit={handleSendStaffAlert}>
+              <div className="panel__header panel__header--compact">
+                <span className="eyebrow">Staff alert</span>
+                <h2>Rode melding als YOWLMAFFIA</h2>
+              </div>
+
+              <label className="field">
+                <span>Alertbericht</span>
+                <textarea
+                  className="lyrics-editor__textarea"
+                  value={alertBody}
+                  onChange={(event) => setAlertBody(event.target.value)}
+                  placeholder="Typ hier een belangrijke staffmelding voor de public chat."
+                />
+                <small className="settings-menu__hint">
+                  Deze melding komt in de public chat als <strong>YOWLMAFFIA</strong> met rode alert-styling.
+                </small>
+              </label>
+
+              <button className="button button--primary" type="submit" disabled={saving}>
+                <Save size={16} />
+                {saving ? 'Versturen...' : 'Alert versturen'}
+              </button>
+            </form>
+          ) : null}
+
+          {isMattiz ? (
+            <>
           <form className="panel public-manage__card public-manage__card--build" onSubmit={handleSaveBuild}>
             <div className="panel__header panel__header--compact">
               <span className="eyebrow">Build</span>
@@ -908,8 +991,12 @@ export default function PublicManagePage() {
               </button>
             </div>
           </form>
+            </>
+          ) : null}
         </div>
 
+        {isMattiz ? (
+          <>
         <section className="panel public-dashboard__releases">
           <div className="panel__header panel__header--compact">
             <span className="eyebrow">Songs</span>
@@ -963,6 +1050,8 @@ export default function PublicManagePage() {
             <p>{latestUpdate?.notes || 'Mattiz kan later hier nieuwe app-updates publiceren.'}</p>
           </article>
         </section>
+          </>
+        ) : null}
 
         {message ? <p className="settings-menu__message public-manage__message">{message}</p> : null}
         {error ? <p className="settings-menu__message public-manage__message public-manage__message--error">{error}</p> : null}
