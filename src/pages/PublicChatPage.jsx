@@ -89,6 +89,43 @@ function isPublicChatOwnMessage(message, currentUser, allowedUsers = []) {
   return false;
 }
 
+function RelativeTimeText({ value }) {
+  const [tick, setTick] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!value) {
+      return undefined;
+    }
+
+    const timer = window.setInterval(() => {
+      setTick(Date.now());
+    }, 30000);
+
+    return () => window.clearInterval(timer);
+  }, [value]);
+
+  return value ? formatRelativeTime(value, tick) : 'zojuist';
+}
+
+function MidnightCountdownChip() {
+  const [tick, setTick] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setTick(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="public-chat__midnight-chip" aria-live="polite">
+      <span>Chat reset om 00:00</span>
+      <strong>{formatCountdownToMidnight(tick)}</strong>
+    </div>
+  );
+}
+
 export default function PublicChatPage() {
   const navigate = useNavigate();
   const [session, setSession] = useState(null);
@@ -105,7 +142,7 @@ export default function PublicChatPage() {
   const [editingMessageId, setEditingMessageId] = useState('');
   const [editingDraft, setEditingDraft] = useState('');
   const [selectedProfile, setSelectedProfile] = useState(null);
-  const [nowTick, setNowTick] = useState(() => Date.now());
+  const [presenceTick, setPresenceTick] = useState(() => Date.now());
   const listRef = useRef(null);
   const composerRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -212,12 +249,12 @@ export default function PublicChatPage() {
   }, [allowedUsers, currentUser]);
 
   const onlinePeople = useMemo(() => {
-    return visibleAllowedUsers.filter((user) => resolvePublicPresenceLabel(user, nowTick, PUBLIC_PRESENCE_STALE_MS, currentUser?.username) === 'online');
-  }, [visibleAllowedUsers, currentUser?.username, nowTick]);
+    return visibleAllowedUsers.filter((user) => resolvePublicPresenceLabel(user, presenceTick, PUBLIC_PRESENCE_STALE_MS, currentUser?.username) === 'online');
+  }, [visibleAllowedUsers, currentUser?.username, presenceTick]);
 
   const offlinePeople = useMemo(() => {
-    return visibleAllowedUsers.filter((user) => resolvePublicPresenceLabel(user, nowTick, PUBLIC_PRESENCE_STALE_MS, currentUser?.username) === 'offline');
-  }, [visibleAllowedUsers, currentUser?.username, nowTick]);
+    return visibleAllowedUsers.filter((user) => resolvePublicPresenceLabel(user, presenceTick, PUBLIC_PRESENCE_STALE_MS, currentUser?.username) === 'offline');
+  }, [visibleAllowedUsers, currentUser?.username, presenceTick]);
 
   useEffect(() => {
     if (!publicChatSupabase || !currentUser) {
@@ -289,8 +326,8 @@ export default function PublicChatPage() {
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      setNowTick(Date.now());
-    }, 1000);
+      setPresenceTick(Date.now());
+    }, 30000);
 
     return () => window.clearInterval(timer);
   }, []);
@@ -300,7 +337,7 @@ export default function PublicChatPage() {
       return undefined;
     }
 
-    const todayKey = getBrusselsDateKey(nowTick);
+    const todayKey = getBrusselsDateKey(presenceTick);
     if (dailyResetRef.current === todayKey) {
       return undefined;
     }
@@ -335,7 +372,7 @@ export default function PublicChatPage() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser?.username, nowTick]);
+  }, [currentUser?.username, presenceTick]);
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
@@ -553,7 +590,6 @@ export default function PublicChatPage() {
   }
 
   const statusText = onlinePeople.length ? `${onlinePeople.length} online` : 'Alles bijgewerkt';
-  const midnightCountdown = useMemo(() => formatCountdownToMidnight(nowTick), [nowTick]);
 
   if (loadingAuth) {
     return (
@@ -615,7 +651,7 @@ export default function PublicChatPage() {
                             {getPublicUserDisplayLabel(senderProfile)}
                           </button>
                           <span className="public-chat__message-time">
-                            {message.created_at ? formatRelativeTime(message.created_at, nowTick) : 'zojuist'}
+                            <RelativeTimeText value={message.created_at} />
                           </span>
                         </div>
 
@@ -737,10 +773,7 @@ export default function PublicChatPage() {
                   <Send size={16} />
                   {sending ? 'Versturen...' : 'Bericht sturen'}
                 </button>
-                <div className="public-chat__midnight-chip" aria-live="polite">
-                  <span>Chat reset om 00:00</span>
-                  <strong>{midnightCountdown}</strong>
-                </div>
+                <MidnightCountdownChip />
               </div>
 
               <input
@@ -798,7 +831,7 @@ export default function PublicChatPage() {
                     <UserAvatar user={user} name={getPublicUserDisplayLabel(user)} size={42} />
                     <div>
                       <strong>{getPublicUserDisplayLabel(user)}</strong>
-                      <span>{user.last_online_at ? `${formatRelativeTime(user.last_online_at, nowTick)} online` : 'offline'}</span>
+                      <span>{user.last_online_at ? <><RelativeTimeText value={user.last_online_at} /> online</> : 'offline'}</span>
                     </div>
                   </button>
                 ))

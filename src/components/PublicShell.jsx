@@ -41,7 +41,7 @@ export default function PublicShell({
     try {
       return new Intl.DateTimeFormat('nl-BE', {
         dateStyle: 'medium',
-        timeStyle: 'medium'
+        timeStyle: 'short'
       }).format(new Date(nowTick));
     } catch {
       return new Date(nowTick).toLocaleString('nl-BE');
@@ -105,7 +105,7 @@ export default function PublicShell({
   useEffect(() => {
     const timer = window.setInterval(() => {
       setNowTick(Date.now());
-    }, 1000);
+    }, 30000);
 
     return () => window.clearInterval(timer);
   }, []);
