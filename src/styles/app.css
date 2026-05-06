@@ -4113,11 +4113,17 @@ a {
 .public-manage__card--alert {
   grid-column: span 5;
   align-self: stretch;
+  justify-self: stretch;
+  width: 100%;
+  overflow: hidden;
 }
 
 .public-manage__card--alert-only {
   grid-column: span 12;
   max-width: 760px;
+  justify-self: stretch;
+  width: 100%;
+  overflow: hidden;
 }
 
 .public-manage__card--build {
@@ -4222,6 +4228,13 @@ a {
 
 .public-manage__actions .button {
   min-width: min(100%, 240px);
+}
+
+.public-manage__card--alert .lyrics-editor__textarea,
+.public-manage__card--alert-only .lyrics-editor__textarea {
+  min-height: 148px;
+  max-height: 260px;
+  overflow-y: auto;
 }
 
 .public-manage__staff-banner {
@@ -5076,5 +5089,52 @@ textarea {
   .public-manage__cover-preview {
     width: 100%;
     max-width: 180px;
+  }
+}
+
+@media (max-width: 640px) {
+  .public-manage {
+    padding: 0.75rem;
+    border-radius: 18px;
+  }
+
+  .public-manage__card {
+    padding: 1rem;
+  }
+
+  .public-manage__card .panel__header {
+    gap: 0.6rem;
+  }
+
+  .public-manage__card--alert,
+  .public-manage__card--alert-only {
+    max-width: none;
+  }
+
+  .public-manage__staff-banner {
+    padding: 0.85rem 0.9rem;
+  }
+
+  .public-manage__staff-badge {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .public-manage__card--alert .lyrics-editor__textarea,
+  .public-manage__card--alert-only .lyrics-editor__textarea {
+    min-height: 132px;
+    max-height: 220px;
+    font-size: 0.96rem;
+    line-height: 1.55;
+  }
+
+  .public-manage__actions {
+    width: 100%;
+  }
+
+  .public-manage__actions .button {
+    width: 100%;
+    min-width: 0;
   }
 }
