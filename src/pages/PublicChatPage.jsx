@@ -47,6 +47,13 @@ function formatCountdownToMidnight(timestamp) {
   return `${hours}:${minutes}:${seconds}`;
 }
 
+function getMsUntilNextMidnight(timestamp = Date.now()) {
+  const now = new Date(timestamp);
+  const nextMidnight = new Date(now);
+  nextMidnight.setHours(24, 0, 0, 0);
+  return Math.max(1000, nextMidnight.getTime() - now.getTime());
+}
+
 function getPublicChatIdentitySet(user) {
   return new Set(
     [
@@ -92,38 +99,16 @@ function isPublicChatOwnMessage(message, currentUser, allowedUsers = []) {
 }
 
 function RelativeTimeText({ value }) {
-  const [tick, setTick] = useState(() => Date.now());
-
-  useEffect(() => {
-    if (!value) {
-      return undefined;
-    }
-
-    const timer = window.setInterval(() => {
-      setTick(Date.now());
-    }, 1800000);
-
-    return () => window.clearInterval(timer);
-  }, [value]);
-
-  return value ? formatRelativeTime(value, tick) : 'zojuist';
+  return value ? formatRelativeTime(value, Date.now()) : 'zojuist';
 }
 
 function MidnightCountdownChip() {
-  const [tick, setTick] = useState(() => Date.now());
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setTick(Date.now());
-    }, 1000);
-
-    return () => window.clearInterval(timer);
-  }, []);
+  const countdownLabel = useMemo(() => formatCountdownToMidnight(Date.now()), []);
 
   return (
-    <div className="public-chat__midnight-chip" aria-live="polite">
+    <div className="public-chat__midnight-chip" aria-live="off">
       <span>Chat reset om 00:00</span>
-      <strong>{formatCountdownToMidnight(tick)}</strong>
+      <strong>{countdownLabel}</strong>
     </div>
   );
 }
@@ -144,7 +129,6 @@ export default function PublicChatPage() {
   const [editingMessageId, setEditingMessageId] = useState('');
   const [editingDraft, setEditingDraft] = useState('');
   const [selectedProfile, setSelectedProfile] = useState(null);
-  const [presenceTick, setPresenceTick] = useState(() => Date.now());
   const listRef = useRef(null);
   const composerRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -252,12 +236,12 @@ export default function PublicChatPage() {
   }, [allowedUsers, currentUser]);
 
   const onlinePeople = useMemo(() => {
-    return visibleAllowedUsers.filter((user) => resolvePublicPresenceLabel(user, presenceTick, PUBLIC_PRESENCE_STALE_MS, currentUser?.username) === 'online');
-  }, [visibleAllowedUsers, currentUser?.username, presenceTick]);
+    return visibleAllowedUsers.filter((user) => resolvePublicPresenceLabel(user, Date.now(), PUBLIC_PRESENCE_STALE_MS, currentUser?.username) === 'online');
+  }, [visibleAllowedUsers, currentUser?.username]);
 
   const offlinePeople = useMemo(() => {
-    return visibleAllowedUsers.filter((user) => resolvePublicPresenceLabel(user, presenceTick, PUBLIC_PRESENCE_STALE_MS, currentUser?.username) === 'offline');
-  }, [visibleAllowedUsers, currentUser?.username, presenceTick]);
+    return visibleAllowedUsers.filter((user) => resolvePublicPresenceLabel(user, Date.now(), PUBLIC_PRESENCE_STALE_MS, currentUser?.username) === 'offline');
+  }, [visibleAllowedUsers, currentUser?.username]);
 
   useEffect(() => {
     if (!publicChatSupabase || !currentUser) {
@@ -328,26 +312,19 @@ export default function PublicChatPage() {
   }, [currentUser?.id, currentUser?.username]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      setPresenceTick(Date.now());
-    }, 1800000);
-
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
     if (!publicChatSupabase || !currentUser) {
       return undefined;
     }
 
-    const todayKey = getBrusselsDateKey(presenceTick);
-    if (dailyResetRef.current === todayKey) {
-      return undefined;
-    }
-
     let cancelled = false;
+    let resetTimer = null;
 
     async function ensureDailyReset() {
+      const todayKey = getBrusselsDateKey(Date.now());
+      if (dailyResetRef.current === todayKey) {
+        return;
+      }
+
       try {
         const { data, error } = await publicChatSupabase.rpc('clear_public_chat_messages');
         if (error) {
@@ -370,12 +347,24 @@ export default function PublicChatPage() {
       }
     }
 
-    void ensureDailyReset();
+    function scheduleDailyReset() {
+      resetTimer = window.setTimeout(async () => {
+        await ensureDailyReset();
+        if (!cancelled) {
+          scheduleDailyReset();
+        }
+      }, getMsUntilNextMidnight());
+    }
+
+    scheduleDailyReset();
 
     return () => {
       cancelled = true;
+      if (resetTimer) {
+        window.clearTimeout(resetTimer);
+      }
     };
-  }, [currentUser?.username, presenceTick]);
+  }, [currentUser?.username]);
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });

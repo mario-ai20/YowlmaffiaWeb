@@ -27,7 +27,6 @@ export default function PublicShell({
 }) {
   const [buildNumber, setBuildNumber] = useState('dev');
   const [themeMode, setThemeMode] = useState(user?.theme_mode || 'system');
-  const [nowTick, setNowTick] = useState(() => Date.now());
   const [privateUnreadCount, setPrivateUnreadCount] = useState(0);
   const [privatePopup, setPrivatePopup] = useState(null);
   const mainRef = useRef(null);
@@ -43,11 +42,11 @@ export default function PublicShell({
       return new Intl.DateTimeFormat('nl-BE', {
         dateStyle: 'medium',
         timeStyle: 'short'
-      }).format(new Date(nowTick));
+      }).format(new Date());
     } catch {
-      return new Date(nowTick).toLocaleString('nl-BE');
+      return new Date().toLocaleString('nl-BE');
     }
-  }, [nowTick]);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -102,14 +101,6 @@ export default function PublicShell({
     media.addEventListener('change', handleChange);
     return () => media.removeEventListener('change', handleChange);
   }, [themeMode]);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setNowTick(Date.now());
-    }, 1800000);
-
-    return () => window.clearInterval(timer);
-  }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {

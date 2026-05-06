@@ -14,6 +14,13 @@ const YOSHI_PUBLIC_NAMES = new Set([
   'bastiaenssens yoshi',
   'yoshi bastiaenssens'
 ]);
+const LUKAS_PUBLIC_EMAIL = 'lukas.stevens@student.tsaam.be';
+const LUKAS_PUBLIC_NAMES = new Set([
+  'lukas',
+  'lukaswekker',
+  'lukas stevens',
+  'stevens lukas'
+]);
 
 export const DEFAULT_PUBLIC_USERS = [
   {
@@ -149,8 +156,40 @@ export function isYoshiPublicUser(user) {
   return candidateValues.some((value) => matchesYoshiPublicIdentity(value));
 }
 
+function matchesLukasPublicIdentity(value = '') {
+  const normalized = normalizePublicUsername(value);
+  if (!normalized) {
+    return false;
+  }
+
+  if (normalized === normalizePublicUsername(LUKAS_PUBLIC_EMAIL)) {
+    return true;
+  }
+
+  if (LUKAS_PUBLIC_NAMES.has(normalized)) {
+    return true;
+  }
+
+  return normalized.includes('lukas');
+}
+
+export function isLukasPublicUser(user) {
+  const candidateValues = [
+    user?.auth_user_id,
+    user?.id,
+    user?.user_id,
+    user?.email,
+    user?.username,
+    user?.displayName,
+    user?.display_name,
+    user?.name
+  ];
+
+  return candidateValues.some((value) => matchesLukasPublicIdentity(value));
+}
+
 export function canManagePublicAlerts(user) {
-  return isMattizPublicUser(user) || isYoshiPublicUser(user);
+  return isMattizPublicUser(user) || isYoshiPublicUser(user) || isLukasPublicUser(user);
 }
 
 function normalizeThemeMode(value) {
