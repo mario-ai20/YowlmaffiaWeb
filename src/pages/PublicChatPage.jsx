@@ -99,18 +99,83 @@ function isPublicChatOwnMessage(message, currentUser, allowedUsers = []) {
 }
 
 function RelativeTimeText({ value }) {
-  return value ? formatRelativeTime(value, Date.now()) : 'zojuist';
+  const [tick, setTick] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!value) {
+      return undefined;
+    }
+
+    const timer = window.setInterval(() => {
+      setTick(Date.now());
+    }, 1800000);
+
+    return () => window.clearInterval(timer);
+  }, [value]);
+
+  return value ? formatRelativeTime(value, tick) : 'zojuist';
 }
 
 function MidnightCountdownChip() {
-  const countdownLabel = useMemo(() => formatCountdownToMidnight(Date.now()), []);
+  const [tick, setTick] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setTick(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, []);
 
   return (
     <div className="public-chat__midnight-chip" aria-live="off">
       <span>Chat reset om 00:00</span>
-      <strong>{countdownLabel}</strong>
+      <strong>{formatCountdownToMidnight(tick)}</strong>
     </div>
   );
+}
+
+function isPublicRoomMessage(message) {
+  return message?.room_key === 'public' || message?.scope === 'public';
+}
+
+function sortPublicMessages(messages) {
+  return [...messages].sort((left, right) => {
+    const leftTime = new Date(left?.created_at || 0).getTime();
+    const rightTime = new Date(right?.created_at || 0).getTime();
+    return leftTime - rightTime;
+  });
+}
+
+function mergePublicMessageChange(previousMessages, payload) {
+  const eventType = String(payload?.eventType || '').toUpperCase();
+  const nextRecord = payload?.new || null;
+  const previousRecord = payload?.old || null;
+  const targetId = String(nextRecord?.id || previousRecord?.id || '').trim();
+
+  if (!targetId) {
+    return previousMessages;
+  }
+
+  if (eventType === 'DELETE') {
+    return previousMessages.filter((message) => String(message?.id || '') !== targetId);
+  }
+
+  if (!isPublicRoomMessage(nextRecord)) {
+    return previousMessages.filter((message) => String(message?.id || '') !== targetId);
+  }
+
+  const existingIndex = previousMessages.findIndex((message) => String(message?.id || '') === targetId);
+  if (existingIndex === -1) {
+    return sortPublicMessages([...previousMessages, nextRecord]);
+  }
+
+  const nextMessages = [...previousMessages];
+  nextMessages[existingIndex] = {
+    ...nextMessages[existingIndex],
+    ...nextRecord
+  };
+  return sortPublicMessages(nextMessages);
 }
 
 export default function PublicChatPage() {
@@ -133,6 +198,8 @@ export default function PublicChatPage() {
   const composerRef = useRef(null);
   const fileInputRef = useRef(null);
   const dailyResetRef = useRef('');
+  const shouldStickToBottomRef = useRef(true);
+  const forceNextScrollRef = useRef(false);
 
   function createFallbackSenderProfile(sender = '') {
     const nextLabel = String(sender || 'Onbekend').trim() || 'Onbekend';
@@ -265,7 +332,7 @@ export default function PublicChatPage() {
           console.error(error);
           setMessages([]);
         } else {
-          setMessages((data || []).filter((message) => message?.room_key === 'public' || message?.scope === 'public'));
+          setMessages(sortPublicMessages((data || []).filter(isPublicRoomMessage)));
         }
         setMessagesLoading(false);
       }
@@ -275,7 +342,9 @@ export default function PublicChatPage() {
 
     const channel = publicChatSupabase
       .channel('public-chat-live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, loadMessages)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, (payload) => {
+        setMessages((previousMessages) => mergePublicMessageChange(previousMessages, payload));
+      })
       .subscribe();
 
     return () => {
@@ -367,7 +436,36 @@ export default function PublicChatPage() {
   }, [currentUser?.username]);
 
   useEffect(() => {
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
+    const listNode = listRef.current;
+    if (!listNode) {
+      return undefined;
+    }
+
+    function handleScroll() {
+      const distanceFromBottom = listNode.scrollHeight - listNode.scrollTop - listNode.clientHeight;
+      shouldStickToBottomRef.current = distanceFromBottom <= 64;
+    }
+
+    handleScroll();
+    listNode.addEventListener('scroll', handleScroll, { passive: true });
+    return () => listNode.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const listNode = listRef.current;
+    if (!listNode) {
+      return;
+    }
+
+    if (!forceNextScrollRef.current && !shouldStickToBottomRef.current) {
+      return;
+    }
+
+    listNode.scrollTo({
+      top: listNode.scrollHeight,
+      behavior: forceNextScrollRef.current ? 'smooth' : 'auto'
+    });
+    forceNextScrollRef.current = false;
   }, [messages]);
 
   useEffect(() => {
@@ -399,7 +497,7 @@ export default function PublicChatPage() {
       return;
     }
 
-    setMessages((data || []).filter((message) => message?.room_key === 'public' || message?.scope === 'public'));
+    setMessages(sortPublicMessages((data || []).filter(isPublicRoomMessage)));
   }
 
   function openProfile(user) {
@@ -416,6 +514,7 @@ export default function PublicChatPage() {
     setEditingMessageId('');
     setEditingDraft('');
     setChatError('');
+    forceNextScrollRef.current = false;
     window.setTimeout(() => composerRef.current?.focus?.(), 0);
   }
 
@@ -503,10 +602,10 @@ export default function PublicChatPage() {
       const nextOnlineAt = new Date().toISOString();
       await updatePublicAllowedUserRow(currentUser, { last_online_at: nextOnlineAt, updated_at: nextOnlineAt });
 
+      forceNextScrollRef.current = true;
       setDraft('');
       setAttachment(null);
       cancelReplyMessage();
-      await reloadMessages();
       window.setTimeout(() => composerRef.current?.focus?.(), 0);
     } catch (error) {
       console.error(error);
