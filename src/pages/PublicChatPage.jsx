@@ -407,7 +407,8 @@ export default function PublicChatPage() {
         dailyResetRef.current = todayKey;
 
         if (data) {
-          await reloadMessages();
+          shouldStickToBottomRef.current = true;
+          setMessages([]);
         }
       } catch (error) {
         if (!cancelled) {
@@ -633,7 +634,6 @@ export default function PublicChatPage() {
       }
 
       cancelEditMessage();
-      await reloadMessages();
     } catch (error) {
       console.error(error);
       setChatError(error instanceof Error ? error.message : 'Bericht bijwerken mislukt.');
@@ -662,8 +662,6 @@ export default function PublicChatPage() {
       if (editingMessageId === message.id) {
         cancelEditMessage();
       }
-
-      await reloadMessages();
     } catch (error) {
       console.error(error);
       setChatError(error instanceof Error ? error.message : 'Bericht verwijderen mislukt.');
