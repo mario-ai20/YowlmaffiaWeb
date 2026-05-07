@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "vite",
     "icons:generate": "node scripts/generate-icons.mjs",
-    "build": "npm run icons:generate && vite build",
+    "version:generate": "node scripts/generate-web-version.mjs",
+    "build": "npm run icons:generate && npm run version:generate && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
     "cf:deploy": "npx wrangler pages deploy dist"
