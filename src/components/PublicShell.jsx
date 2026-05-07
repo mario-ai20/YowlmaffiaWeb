@@ -144,7 +144,7 @@ export default function PublicShell({
 
     const timer = window.setInterval(() => {
       void touchPresence();
-    }, 20000);
+    }, 1800000);
 
     window.addEventListener('focus', handleWake);
     window.addEventListener('online', handleWake);
