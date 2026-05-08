@@ -1,5 +1,6 @@
 import { Check, CornerUpLeft, Edit3, MessageSquarePlus, Paperclip, RefreshCw, Send, Trash2, UsersRound } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import ChatMediaLightbox from '../components/ChatMediaLightbox';
 import SetupNotice from '../components/SetupNotice';
 import UserAvatar from '../components/UserAvatar';
 import UserProfileDialog from '../components/UserProfileDialog';
@@ -549,8 +550,22 @@ export default function ChatPage({
 
                     {attachmentPreview ? (
                       <div className="chat-bubble__attachment">
-                        {attachmentPreview.kind === 'image' ? <img src={attachmentPreview.url} alt="Bijlage afbeelding" /> : null}
-                        {attachmentPreview.kind === 'video' ? <video src={attachmentPreview.url} controls playsInline /> : null}
+                        {attachmentPreview.kind === 'image' ? (
+                          <ChatMediaLightbox
+                            kind="image"
+                            url={attachmentPreview.url}
+                            alt="Bijlage afbeelding"
+                            mediaClassName="chat-bubble__attachment-media"
+                          />
+                        ) : null}
+                        {attachmentPreview.kind === 'video' ? (
+                          <ChatMediaLightbox
+                            kind="video"
+                            url={attachmentPreview.url}
+                            alt="Bijlage video"
+                            mediaClassName="chat-bubble__attachment-media"
+                          />
+                        ) : null}
                         {attachmentPreview.kind === 'audio' ? <audio src={attachmentPreview.url} controls /> : null}
                         {attachmentPreview.kind === 'file' ? (
                           <a href={attachmentPreview.url} target="_blank" rel="noreferrer">
@@ -582,6 +597,31 @@ export default function ChatPage({
                 </button>
               </div>
             ) : null}
+            {pendingAttachmentPreview ? (
+              <div className="chat-page__attachment-preview chat-page__attachment-preview--above">
+                {pendingAttachmentPreview.kind === 'image' ? (
+                  <ChatMediaLightbox
+                    kind="image"
+                    url={pendingAttachmentPreview.url}
+                    alt="Preview afbeelding"
+                    mediaClassName="chat-page__attachment-preview-media"
+                  />
+                ) : null}
+                {pendingAttachmentPreview.kind === 'video' ? (
+                  <ChatMediaLightbox
+                    kind="video"
+                    url={pendingAttachmentPreview.url}
+                    alt="Preview video"
+                    mediaClassName="chat-page__attachment-preview-media"
+                  />
+                ) : null}
+                {pendingAttachmentPreview.kind === 'audio' ? <audio src={pendingAttachmentPreview.url} controls /> : null}
+                {pendingAttachmentPreview.kind === 'file' ? <span className="chat-page__attachment-preview-file">Bestand klaar om te versturen</span> : null}
+                <button className="button button--ghost button--compact" type="button" onClick={() => setAttachment(null)}>
+                  Verwijder bijlage
+                </button>
+              </div>
+            ) : null}
             <input
               className="input"
               value={draft}
@@ -607,18 +647,6 @@ export default function ChatPage({
                 }}
             />
           </form>
-
-          {pendingAttachmentPreview ? (
-            <div className="chat-page__attachment-preview">
-              {pendingAttachmentPreview.kind === 'image' ? <img src={pendingAttachmentPreview.url} alt="Preview afbeelding" /> : null}
-              {pendingAttachmentPreview.kind === 'video' ? <video src={pendingAttachmentPreview.url} controls playsInline /> : null}
-              {pendingAttachmentPreview.kind === 'audio' ? <audio src={pendingAttachmentPreview.url} controls /> : null}
-              {pendingAttachmentPreview.kind === 'file' ? <span className="chat-page__attachment-preview-file">Bestand klaar om te versturen</span> : null}
-              <button className="button button--ghost button--compact" type="button" onClick={() => setAttachment(null)}>
-                Verwijder bijlage
-              </button>
-            </div>
-          ) : null}
           {chatError ? <div className="form-error chat-page__error">{chatError}</div> : null}
         </div>
 

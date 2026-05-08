@@ -1,6 +1,7 @@
 import { Check, CornerUpLeft, Edit3, Paperclip, RefreshCw, Send, Trash2, UsersRound } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
+import ChatMediaLightbox from '../components/ChatMediaLightbox';
 import PublicShell from '../components/PublicShell';
 import PublicUserProfileDialog from '../components/PublicUserProfileDialog';
 import SetupNotice from '../components/SetupNotice';
@@ -743,8 +744,22 @@ export default function PublicPrivatePage() {
 
                       {attachmentPreview ? (
                         <div className="chat-bubble__attachment">
-                          {attachmentPreview.kind === 'image' ? <img src={attachmentPreview.url} alt="Bijlage afbeelding" /> : null}
-                          {attachmentPreview.kind === 'video' ? <video src={attachmentPreview.url} controls playsInline /> : null}
+                          {attachmentPreview.kind === 'image' ? (
+                            <ChatMediaLightbox
+                              kind="image"
+                              url={attachmentPreview.url}
+                              alt="Bijlage afbeelding"
+                              mediaClassName="chat-bubble__attachment-media"
+                            />
+                          ) : null}
+                          {attachmentPreview.kind === 'video' ? (
+                            <ChatMediaLightbox
+                              kind="video"
+                              url={attachmentPreview.url}
+                              alt="Bijlage video"
+                              mediaClassName="chat-bubble__attachment-media"
+                            />
+                          ) : null}
                           {attachmentPreview.kind === 'audio' ? <audio src={attachmentPreview.url} controls /> : null}
                           {attachmentPreview.kind === 'file' ? (
                             <a href={attachmentPreview.url} target="_blank" rel="noreferrer">
@@ -773,6 +788,32 @@ export default function PublicPrivatePage() {
                   </div>
                   <button className="button button--ghost button--small" type="button" onClick={cancelReplyMessage}>
                     Annuleer
+                  </button>
+                </div>
+              ) : null}
+
+              {pendingAttachmentPreview ? (
+                <div className="chat-page__attachment-preview chat-page__attachment-preview--above">
+                  {pendingAttachmentPreview.kind === 'image' ? (
+                    <ChatMediaLightbox
+                      kind="image"
+                      url={pendingAttachmentPreview.url}
+                      alt="Preview afbeelding"
+                      mediaClassName="chat-page__attachment-preview-media"
+                    />
+                  ) : null}
+                  {pendingAttachmentPreview.kind === 'video' ? (
+                    <ChatMediaLightbox
+                      kind="video"
+                      url={pendingAttachmentPreview.url}
+                      alt="Preview video"
+                      mediaClassName="chat-page__attachment-preview-media"
+                    />
+                  ) : null}
+                  {pendingAttachmentPreview.kind === 'audio' ? <audio src={pendingAttachmentPreview.url} controls /> : null}
+                  {pendingAttachmentPreview.kind === 'file' ? <span className="chat-page__attachment-preview-file">Bestand klaar om te versturen</span> : null}
+                  <button className="button button--ghost button--compact" type="button" onClick={() => setAttachment(null)}>
+                    Verwijder bijlage
                   </button>
                 </div>
               ) : null}
@@ -813,18 +854,6 @@ export default function PublicPrivatePage() {
                 }}
               />
             </form>
-
-            {pendingAttachmentPreview ? (
-              <div className="chat-page__attachment-preview">
-                {pendingAttachmentPreview.kind === 'image' ? <img src={pendingAttachmentPreview.url} alt="Preview afbeelding" /> : null}
-                {pendingAttachmentPreview.kind === 'video' ? <video src={pendingAttachmentPreview.url} controls playsInline /> : null}
-                {pendingAttachmentPreview.kind === 'audio' ? <audio src={pendingAttachmentPreview.url} controls /> : null}
-                {pendingAttachmentPreview.kind === 'file' ? <span className="chat-page__attachment-preview-file">Bestand klaar om te versturen</span> : null}
-                <button className="button button--ghost button--compact" type="button" onClick={() => setAttachment(null)}>
-                  Verwijder bijlage
-                </button>
-              </div>
-            ) : null}
             {chatError ? <div className="error-message chat-page__error">{chatError}</div> : null}
           </div>
 
