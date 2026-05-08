@@ -37,6 +37,7 @@ export default function PublicShell({
   const navigate = useNavigate();
   const isMattiz = isMattizPublicUser(user);
   const canManageAlerts = canManagePublicAlerts(user);
+  const isWebApp = typeof window !== 'undefined' && !window.desktop;
 
   const headerDateTime = useMemo(() => {
     try {
@@ -290,7 +291,7 @@ export default function PublicShell({
   }
 
   return (
-    <div className="public-shell">
+    <div className={`public-shell ${isWebApp ? 'public-shell--web' : ''}`.trim()}>
       <header className="public-shell__header">
         <BrandMark subtitle="" />
 
