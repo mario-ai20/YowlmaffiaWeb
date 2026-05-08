@@ -4,6 +4,7 @@ import { Navigate, useNavigate } from 'react-router';
 import MusicReleaseCard from '../components/MusicReleaseCard';
 import PublicShell from '../components/PublicShell';
 import RichTextContent from '../components/RichTextContent';
+import { formatRelativeTime } from '../utils/dates';
 import { publicChatSupabase, isPublicChatSupabaseConfigured } from '../utils/supabase';
 import {
   canManagePublicAlerts,
@@ -72,6 +73,7 @@ export default function PublicManagePage() {
   const [alertBody, setAlertBody] = useState('');
   const [warningRecipientEmail, setWarningRecipientEmail] = useState('');
   const [warningBody, setWarningBody] = useState('');
+  const [warningLog, setWarningLog] = useState([]);
 
   const isMattiz = isMattizPublicUser(currentUser);
   const canSendAlerts = canManagePublicAlerts(currentUser);
@@ -184,7 +186,7 @@ export default function PublicManagePage() {
     async function bootstrapManage() {
       setLoadingPage(true);
 
-      const [buildResult, infoResult, rulesResult, musicResult, socialResult, updateResult] = await Promise.all([
+      const [buildResult, infoResult, rulesResult, musicResult, socialResult, updateResult, warningResult] = await Promise.all([
         publicChatSupabase.from('app_build_state').select('build_number, published_at, created_at, updated_at').eq('id', 'current').maybeSingle(),
         publicChatSupabase.from('app_info_blocks').select('*').eq('id', 'current').maybeSingle(),
         publicChatSupabase.from('app_info_blocks').select('*').eq('id', 'rules').maybeSingle(),
@@ -195,7 +197,13 @@ export default function PublicManagePage() {
           .select('version, download_url, notes, is_required, published_at, created_at')
           .order('published_at', { ascending: false })
           .order('created_at', { ascending: false })
-          .limit(1)
+          .limit(1),
+        publicChatSupabase
+          .from('notifications')
+          .select('id, recipient_email, recipient_username, actor_username, title, body, metadata, is_read, created_at, read_at')
+          .eq('kind', 'targeted_warning')
+          .order('created_at', { ascending: false })
+          .limit(30)
       ]);
 
       if (cancelled) {
@@ -231,6 +239,7 @@ export default function PublicManagePage() {
       setMusicReleases(Array.isArray(musicResult) ? musicResult.map(normalizeMusicRelease) : []);
       setSocialLinks(Array.isArray(socialResult) && socialResult.length ? socialResult : createDefaultSocialLinks());
       setLatestUpdate(Array.isArray(updateResult?.data) ? updateResult.data[0] || null : null);
+      setWarningLog(Array.isArray(warningResult?.data) ? warningResult.data : []);
       setLoadingPage(false);
     }
 
@@ -261,6 +270,11 @@ export default function PublicManagePage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'app_social_links' }, bootstrapManage)
       .subscribe();
 
+    const warningChannel = publicChatSupabase
+      .channel('public-manage-warning-log-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, bootstrapManage)
+      .subscribe();
+
     return () => {
       cancelled = true;
       publicChatSupabase.removeChannel(infoChannel);
@@ -268,6 +282,7 @@ export default function PublicManagePage() {
       publicChatSupabase.removeChannel(updateChannel);
       publicChatSupabase.removeChannel(musicChannel);
       publicChatSupabase.removeChannel(socialChannel);
+      publicChatSupabase.removeChannel(warningChannel);
     };
   }, [currentUser, isMattiz, canSendAlerts]);
 
@@ -660,6 +675,24 @@ export default function PublicManagePage() {
       }
 
       setWarningBody('');
+      setWarningLog((previous) => [
+        {
+          id: crypto.randomUUID?.() || `${Date.now()}`,
+          recipient_email: recipient.email,
+          recipient_username: String(recipient.username || recipient.displayName || recipient.email || '').trim() || recipient.email,
+          actor_username: 'YOWLMAFFIA',
+          title: 'Waarschuwing van YOWLMAFFIA',
+          body: nextWarningBody,
+          metadata: {
+            style: 'staff_warning',
+            sent_by_manager: String(currentUser.username || currentUser.displayName || currentUser.email || '').trim()
+          },
+          is_read: false,
+          created_at: new Date().toISOString(),
+          read_at: null
+        },
+        ...previous
+      ].slice(0, 30));
       setMessage(`Waarschuwing verzonden naar ${recipient.displayName || recipient.username || recipient.email}.`);
     } catch (warningError) {
       setError(warningError?.message || 'Waarschuwing versturen mislukt.');
@@ -803,6 +836,44 @@ export default function PublicManagePage() {
                 </button>
               </div>
             </form>
+          ) : null}
+
+          {canSendAlerts ? (
+            <section className={`panel public-manage__card public-manage__card--warning-log ${alertOnlyManager ? 'public-manage__card--alert-only' : ''}`.trim()}>
+              <div className="panel__header panel__header--compact">
+                <span className="eyebrow">Warnings logboek</span>
+                <h2>Bijgehouden waarschuwingen</h2>
+              </div>
+
+              {warningLog.length ? (
+                <div className="public-manage__warning-log">
+                  {warningLog.map((entry) => {
+                    const sentBy = String(entry?.metadata?.sent_by_manager || '').trim();
+                    const recipientLabel = entry.recipient_username || entry.recipient_email || 'Onbekende gebruiker';
+
+                    return (
+                      <article key={entry.id} className="public-manage__warning-log-item">
+                        <div className="public-manage__warning-log-head">
+                          <strong>{recipientLabel}</strong>
+                          <span>{formatRelativeTime(entry.created_at)}</span>
+                        </div>
+                        <p>{entry.body || entry.title}</p>
+                        <div className="public-manage__warning-log-meta">
+                          <span>Verzonden als YOWLMAFFIA</span>
+                          {sentBy ? <span>Door {sentBy}</span> : null}
+                          <span>{entry.is_read ? 'Gelezen' : 'Nog niet gelezen'}</span>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="empty-state empty-state--compact">
+                  <strong>Nog geen warnings</strong>
+                  <p>Hier zie je straks alle gerichte waarschuwingen terug.</p>
+                </div>
+              )}
+            </section>
           ) : null}
 
           {isMattiz ? (
