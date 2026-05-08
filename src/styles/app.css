@@ -3623,6 +3623,67 @@ a {
   flex-shrink: 0;
 }
 
+.public-shell__warning-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: grid;
+  place-items: center;
+  padding: 1.2rem;
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.22), transparent 42%),
+    rgba(120, 0, 0, 0.88);
+  backdrop-filter: blur(10px);
+}
+
+.public-shell__warning-card {
+  width: min(92vw, 760px);
+  display: grid;
+  gap: 1rem;
+  padding: 2rem;
+  border-radius: 28px;
+  border: 2px solid rgba(188, 0, 0, 0.52);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(255, 241, 241, 0.99));
+  color: #430909;
+  box-shadow: 0 24px 80px rgba(80, 0, 0, 0.34);
+  animation: public-warning-pulse 1.8s ease-in-out infinite;
+}
+
+.public-shell__warning-card h2 {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  line-height: 1.05;
+  color: #970f0f;
+}
+
+.public-shell__warning-card p {
+  margin: 0;
+  font-size: clamp(1.08rem, 2vw, 1.42rem);
+  line-height: 1.6;
+  color: #551313;
+}
+
+.public-shell__warning-card small {
+  color: #7a2626;
+  font-size: 0.96rem;
+  line-height: 1.6;
+}
+
+.public-shell__warning-badge {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.95rem;
+  border-radius: 999px;
+  background: #b70f0f;
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
 :root[data-theme='light'] .public-shell__popup {
   background:
     linear-gradient(140deg, rgba(255, 255, 255, 0.98), rgba(246, 248, 255, 0.96)),
@@ -4083,6 +4144,14 @@ a {
   overflow: hidden;
 }
 
+.public-manage__card--warning {
+  grid-column: span 5;
+  align-self: stretch;
+  justify-self: stretch;
+  width: 100%;
+  overflow: hidden;
+}
+
 .public-manage__card--alert-only {
   grid-column: span 12;
   max-width: 760px;
@@ -4234,6 +4303,26 @@ a {
   margin: 0;
   color: rgba(255, 240, 244, 0.88);
   line-height: 1.65;
+}
+
+.public-manage__staff-banner--warning {
+  border: 1px solid rgba(214, 42, 42, 0.25);
+  background:
+    linear-gradient(180deg, rgba(255, 250, 250, 0.96), rgba(255, 236, 236, 0.92)),
+    rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 14px 32px rgba(120, 0, 0, 0.12),
+    0 0 0 1px rgba(255, 255, 255, 0.3) inset;
+}
+
+.public-manage__staff-banner--warning .public-manage__staff-badge {
+  border-color: rgba(177, 11, 11, 0.22);
+  background: rgba(186, 0, 0, 0.92);
+  color: #fff;
+}
+
+.public-manage__staff-banner--warning .public-manage__staff-note {
+  color: #661818;
 }
 
 .public-manage__preview {
@@ -4476,6 +4565,19 @@ a {
     box-shadow:
       0 0 0 1px rgba(255, 92, 120, 0.42),
       0 0 34px rgba(255, 41, 80, 0.28);
+  }
+}
+
+@keyframes public-warning-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 24px 80px rgba(80, 0, 0, 0.34);
+  }
+
+  50% {
+    transform: scale(1.01);
+    box-shadow: 0 28px 90px rgba(120, 0, 0, 0.44);
   }
 }
 

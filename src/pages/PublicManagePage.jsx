@@ -70,10 +70,27 @@ export default function PublicManagePage() {
   const [musicReleases, setMusicReleases] = useState([]);
   const [socialLinks, setSocialLinks] = useState(createDefaultSocialLinks());
   const [alertBody, setAlertBody] = useState('');
+  const [warningRecipientEmail, setWarningRecipientEmail] = useState('');
+  const [warningBody, setWarningBody] = useState('');
 
   const isMattiz = isMattizPublicUser(currentUser);
   const canSendAlerts = canManagePublicAlerts(currentUser);
   const alertOnlyManager = canSendAlerts && !isMattiz;
+  const warningRecipients = useMemo(
+    () => allowedUsers.filter((user) => String(user?.email || '').trim() && String(user?.email || '').trim() !== String(currentUser?.email || '').trim()),
+    [allowedUsers, currentUser?.email]
+  );
+
+  useEffect(() => {
+    if (!warningRecipients.length) {
+      setWarningRecipientEmail('');
+      return;
+    }
+
+    if (!warningRecipientEmail || !warningRecipients.some((user) => user.email === warningRecipientEmail)) {
+      setWarningRecipientEmail(warningRecipients[0].email);
+    }
+  }, [warningRecipientEmail, warningRecipients]);
 
   function normalizeBuildState(row = null) {
     return {
@@ -599,6 +616,58 @@ export default function PublicManagePage() {
     }
   }
 
+  async function handleSendTargetedWarning(event) {
+    event.preventDefault();
+
+    if (!publicChatSupabase || !canSendAlerts || !currentUser) {
+      return;
+    }
+
+    const recipient = warningRecipients.find((user) => user.email === warningRecipientEmail);
+    const nextWarningBody = String(warningBody || '').trim();
+
+    if (!recipient) {
+      setError('Kies eerst een ontvanger voor de waarschuwing.');
+      return;
+    }
+
+    if (!nextWarningBody) {
+      setError('Typ eerst een waarschuwing.');
+      return;
+    }
+
+    setSaving(true);
+    setMessage('');
+    setError('');
+
+    try {
+      const { error: insertError } = await publicChatSupabase.from('notifications').insert({
+        recipient_username: String(recipient.username || recipient.displayName || recipient.email || '').trim() || recipient.email,
+        recipient_email: recipient.email,
+        actor_username: 'YOWLMAFFIA',
+        kind: 'targeted_warning',
+        title: 'Waarschuwing van YOWLMAFFIA',
+        body: nextWarningBody,
+        link: '/public/chat',
+        metadata: {
+          style: 'staff_warning',
+          sent_by_manager: String(currentUser.username || currentUser.displayName || currentUser.email || '').trim()
+        }
+      });
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      setWarningBody('');
+      setMessage(`Waarschuwing verzonden naar ${recipient.displayName || recipient.username || recipient.email}.`);
+    } catch (warningError) {
+      setError(warningError?.message || 'Waarschuwing versturen mislukt.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (loadingAuth) {
     return (
       <section className="public-page">
@@ -630,8 +699,8 @@ export default function PublicManagePage() {
               <h1>Publieke content beheren</h1>
               <p>
                 {isMattiz
-                  ? 'Hier beheer je alleen de publieke kant: info, regels, updates, staff alerts en Spotify-banners.'
-                  : 'Hier kan je alleen staff alerts sturen naar de public chat als YOWLMAFFIA.'}
+                  ? 'Hier beheer je alleen de publieke kant: info, regels, updates, staff alerts, gerichte waarschuwingen en Spotify-banners.'
+                  : 'Hier kan je alleen staff alerts en gerichte waarschuwingen sturen als YOWLMAFFIA.'}
               </p>
             </div>
           </div>
@@ -659,7 +728,7 @@ export default function PublicManagePage() {
                 <div className="public-manage__staff-badge">YOWLMAFFIA STAFF</div>
                 <p className="public-manage__staff-note">
                   {alertOnlyManager
-                    ? 'Jij kan hier alleen staff alerts sturen. De rest van de publieke beheeropties blijft verborgen.'
+                    ? 'Jij kan hier staff alerts en gerichte waarschuwingen sturen. De rest van de publieke beheeropties blijft verborgen.'
                     : 'Deze melding verschijnt opvallend rood in de public chat en wordt verzonden als YOWLMAFFIA.'}
                 </p>
               </div>
@@ -686,8 +755,58 @@ export default function PublicManagePage() {
             </form>
           ) : null}
 
+          {canSendAlerts ? (
+            <form
+              className={`panel public-manage__card public-manage__card--warning ${alertOnlyManager ? 'public-manage__card--alert-only' : ''}`.trim()}
+              onSubmit={handleSendTargetedWarning}
+            >
+              <div className="panel__header panel__header--compact">
+                <span className="eyebrow">Gerichte waarschuwing</span>
+                <h2>Waarschuwing voor één persoon</h2>
+              </div>
+
+              <div className="public-manage__staff-banner public-manage__staff-banner--warning">
+                <div className="public-manage__staff-badge">YOWLMAFFIA WARNING</div>
+                <p className="public-manage__staff-note">
+                  Deze waarschuwing verschijnt full-screen bij de gekozen gebruiker en blijft duidelijk zichtbaar tot die persoon bevestigt.
+                </p>
+              </div>
+
+              <label className="field">
+                <span>Ontvanger</span>
+                <select className="input" value={warningRecipientEmail} onChange={(event) => setWarningRecipientEmail(event.target.value)}>
+                  {warningRecipients.map((user) => (
+                    <option key={user.email} value={user.email}>
+                      {user.displayName || user.username || user.email}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="field">
+                <span>Waarschuwing</span>
+                <textarea
+                  className="lyrics-editor__textarea"
+                  value={warningBody}
+                  onChange={(event) => setWarningBody(event.target.value)}
+                  placeholder="Typ hier de waarschuwing voor deze gebruiker."
+                />
+                <small className="settings-menu__hint">
+                  Dit opent een grote wit-rode waarschuwing op het scherm van de gekozen gebruiker.
+                </small>
+              </label>
+
+              <div className="public-manage__actions">
+                <button className="button button--primary" type="submit" disabled={saving || !warningRecipients.length}>
+                  <Save size={16} />
+                  {saving ? 'Versturen...' : 'Waarschuwing sturen'}
+                </button>
+              </div>
+            </form>
+          ) : null}
+
           {isMattiz ? (
-            <>
+          <>
           <form className="panel public-manage__card public-manage__card--build" onSubmit={handleSaveBuild}>
             <div className="panel__header panel__header--compact">
               <span className="eyebrow">Build</span>
@@ -1006,47 +1125,46 @@ export default function PublicManagePage() {
               </button>
             </div>
           </form>
-            </>
+          </>
           ) : null}
         </div>
 
         {isMattiz ? (
-          <>
-        <section className="panel public-dashboard__releases">
-          <div className="panel__header panel__header--compact">
-            <span className="eyebrow">Songs</span>
-            <h2>Bestaande banners</h2>
-            <button className="button button--ghost button--compact" type="button" onClick={() => setMessage('Banners staan online en worden live gesynchroniseerd.')}>
-              <Check size={16} />
-              Live
-            </button>
-          </div>
-
-          {!isPublicChatSupabaseConfigured ? (
-            <div className="empty-state empty-state--compact">
-              <strong>Public Supabase is nog niet gekoppeld.</strong>
-              <p>Koppel eerst de public database om banners te beheren.</p>
-            </div>
-          ) : loadingPage ? (
-            <div className="empty-state empty-state--compact">
-              <strong>Publieke content laden...</strong>
-              <p>We halen info, releases en banners uit Supabase.</p>
-            </div>
-          ) : musicReleases.length ? (
-            <div className="music-release-grid music-release-grid--compact">
-              {musicReleases.map((release) => (
-                <MusicReleaseCard key={release.id} release={release} canManage onDelete={handleDeleteMusicRelease} />
-              ))}
-            </div>
-          ) : (
-            <div className="empty-state empty-state--compact">
-              <strong>Nog geen banners</strong>
-              <p>Maak hierboven de eerste publieke Spotify-banner aan.</p>
-            </div>
-          )}
-        </section>
-
           <section className="public-manage__preview">
+            <section className="panel public-dashboard__releases">
+              <div className="panel__header panel__header--compact">
+                <span className="eyebrow">Songs</span>
+                <h2>Bestaande banners</h2>
+                <button className="button button--ghost button--compact" type="button" onClick={() => setMessage('Banners staan online en worden live gesynchroniseerd.')}>
+                  <Check size={16} />
+                  Live
+                </button>
+              </div>
+
+              {!isPublicChatSupabaseConfigured ? (
+                <div className="empty-state empty-state--compact">
+                  <strong>Public Supabase is nog niet gekoppeld.</strong>
+                  <p>Koppel eerst de public database om banners te beheren.</p>
+                </div>
+              ) : loadingPage ? (
+                <div className="empty-state empty-state--compact">
+                  <strong>Publieke content laden...</strong>
+                  <p>We halen info, releases en banners uit Supabase.</p>
+                </div>
+              ) : musicReleases.length ? (
+                <div className="music-release-grid music-release-grid--compact">
+                  {musicReleases.map((release) => (
+                    <MusicReleaseCard key={release.id} release={release} canManage onDelete={handleDeleteMusicRelease} />
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state empty-state--compact">
+                  <strong>Nog geen banners</strong>
+                  <p>Maak hierboven de eerste publieke Spotify-banner aan.</p>
+                </div>
+              )}
+            </section>
+
             <article className="panel public-block" style={infoCurrent.textColor ? { color: infoCurrent.textColor } : undefined}>
               <span className="eyebrow">Voorvertoning</span>
               <h2>{infoCurrent.title || 'YOWLMAFFIA'}</h2>
@@ -1065,7 +1183,6 @@ export default function PublicManagePage() {
             <p>{latestUpdate?.notes || 'Mattiz kan later hier nieuwe app-updates publiceren.'}</p>
           </article>
         </section>
-          </>
         ) : null}
 
         {message ? <p className="settings-menu__message public-manage__message">{message}</p> : null}

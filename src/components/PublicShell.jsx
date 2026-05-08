@@ -1,4 +1,4 @@
-import { Bell, LayoutDashboard, LogOut, MessagesSquare, Share2, ShieldEllipsis, X } from 'lucide-react';
+import { AlertTriangle, Bell, LayoutDashboard, LogOut, MessagesSquare, Share2, ShieldEllipsis, X } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import BrandMark from './BrandMark';
@@ -29,13 +29,14 @@ export default function PublicShell({
   const [themeMode, setThemeMode] = useState(user?.theme_mode || 'system');
   const [privateUnreadCount, setPrivateUnreadCount] = useState(0);
   const [privatePopup, setPrivatePopup] = useState(null);
+  const [targetedWarning, setTargetedWarning] = useState(null);
+  const [warningBusy, setWarningBusy] = useState(false);
   const mainRef = useRef(null);
   const popupTimerRef = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
   const isMattiz = isMattizPublicUser(user);
   const canManageAlerts = canManagePublicAlerts(user);
-  const isWebApp = typeof window !== 'undefined' && !window.desktop;
 
   const headerDateTime = useMemo(() => {
     try {
@@ -162,25 +163,27 @@ export default function PublicShell({
   useEffect(() => {
     if (!publicChatSupabase || !user?.email) {
       setPrivateUnreadCount(0);
+      setTargetedWarning(null);
       return undefined;
     }
 
     let cancelled = false;
 
-    async function loadPrivateUnreadCount() {
+    async function loadNotificationState() {
       const { data, error } = await publicChatSupabase
         .from('notifications')
-        .select('id')
+        .select('id, kind, title, body, actor_username, is_read, metadata, created_at')
         .eq('recipient_email', user.email)
-        .eq('kind', 'private_message')
-        .eq('is_read', false);
+        .order('created_at', { ascending: false });
 
       if (!cancelled) {
-        setPrivateUnreadCount(error ? 0 : (data || []).length);
+        const rows = error ? [] : (data || []);
+        setPrivateUnreadCount(rows.filter((notification) => notification.kind === 'private_message' && notification.is_read === false).length);
+        setTargetedWarning(rows.find((notification) => notification.kind === 'targeted_warning' && notification.is_read === false) || null);
       }
     }
 
-    loadPrivateUnreadCount();
+    loadNotificationState();
 
     const channel = publicChatSupabase
       .channel(`public-private-notifications-${user.email}`)
@@ -188,7 +191,7 @@ export default function PublicShell({
         'postgres_changes',
         { event: '*', schema: 'public', table: 'notifications', filter: `recipient_email=eq.${user.email}` },
         (payload) => {
-          loadPrivateUnreadCount();
+          loadNotificationState();
 
           if (
             payload?.eventType === 'INSERT'
@@ -213,6 +216,21 @@ export default function PublicShell({
               popupTimerRef.current = null;
             }, 7000);
           }
+
+          if (
+            payload?.eventType === 'INSERT'
+            && payload?.new?.kind === 'targeted_warning'
+            && payload?.new?.is_read === false
+          ) {
+            setTargetedWarning({
+              id: payload.new.id,
+              kind: payload.new.kind,
+              title: payload.new.title,
+              body: payload.new.body,
+              actor_username: payload.new.actor_username,
+              metadata: payload.new.metadata || {}
+            });
+          }
         }
       )
       .subscribe();
@@ -227,8 +245,52 @@ export default function PublicShell({
     };
   }, [user?.email]);
 
+  useEffect(() => {
+    if (!targetedWarning) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        void handleDismissTargetedWarning();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [targetedWarning]);
+
+  async function handleDismissTargetedWarning() {
+    if (!publicChatSupabase || !targetedWarning?.id || warningBusy) {
+      return;
+    }
+
+    setWarningBusy(true);
+
+    try {
+      await publicChatSupabase
+        .from('notifications')
+        .update({ is_read: true, read_at: new Date().toISOString() })
+        .eq('id', targetedWarning.id)
+        .eq('recipient_email', user.email);
+      const { data } = await publicChatSupabase
+        .from('notifications')
+        .select('id, kind, title, body, actor_username, is_read, metadata, created_at')
+        .eq('recipient_email', user.email)
+        .eq('kind', 'targeted_warning')
+        .eq('is_read', false)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      setTargetedWarning(data?.[0] || null);
+    } finally {
+      setWarningBusy(false);
+    }
+  }
+
   return (
-    <div className={`public-shell ${isWebApp ? 'public-shell--web' : ''}`.trim()}>
+    <div className="public-shell">
       <header className="public-shell__header">
         <BrandMark subtitle="" />
 
@@ -333,6 +395,25 @@ export default function PublicShell({
               }}
             >
               <X size={16} />
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {targetedWarning ? (
+        <div className="public-shell__warning-overlay" role="dialog" aria-modal="true" aria-live="assertive">
+          <div className="public-shell__warning-card">
+            <div className="public-shell__warning-badge">
+              <AlertTriangle size={18} />
+              YOWLMAFFIA WARNING
+            </div>
+            <h2>{targetedWarning.title || 'Waarschuwing van YOWLMAFFIA'}</h2>
+            <p>{targetedWarning.body || 'Er is een belangrijke waarschuwing voor jou.'}</p>
+            <small>
+              Deze melding is persoonlijk naar jouw account gestuurd. Druk op <strong>Ik heb dit gelezen</strong> om verder te gaan.
+            </small>
+            <button className="button button--danger" type="button" onClick={() => void handleDismissTargetedWarning()} disabled={warningBusy}>
+              {warningBusy ? 'Bevestigen...' : 'Ik heb dit gelezen'}
             </button>
           </div>
         </div>
