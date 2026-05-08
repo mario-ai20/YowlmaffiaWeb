@@ -53,6 +53,41 @@ export function getAttachmentPreview(attachmentUrl, attachmentType, fallbackTitl
   };
 }
 
+export function createLocalAttachmentPreview(file) {
+  if (!file) {
+    return null;
+  }
+
+  const url = URL.createObjectURL(file);
+
+  if (file.type?.startsWith('image/')) {
+    return {
+      kind: 'image',
+      url
+    };
+  }
+
+  if (file.type?.startsWith('video/')) {
+    return {
+      kind: 'video',
+      url
+    };
+  }
+
+  if (file.type?.startsWith('audio/')) {
+    return {
+      kind: 'audio',
+      url
+    };
+  }
+
+  return {
+    kind: 'file',
+    url,
+    title: 'Bijlage'
+  };
+}
+
 export function createChatFallbackAvatar(label) {
   return createDefaultCoverDataUrl(label || 'YOWLMAFFIA', 'chat');
 }

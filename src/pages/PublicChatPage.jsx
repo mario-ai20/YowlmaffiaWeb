@@ -5,7 +5,7 @@ import PublicShell from '../components/PublicShell';
 import PublicUserProfileDialog from '../components/PublicUserProfileDialog';
 import UserAvatar from '../components/UserAvatar';
 import { publicChatSupabase, isPublicChatSupabaseConfigured } from '../utils/supabase';
-import { getAttachmentPreview } from '../utils/chat';
+import { createLocalAttachmentPreview, getAttachmentPreview } from '../utils/chat';
 import {
   ensurePublicAllowedUserRow,
   findPublicAllowedUser,
@@ -200,6 +200,15 @@ export default function PublicChatPage() {
   const dailyResetRef = useRef('');
   const shouldStickToBottomRef = useRef(true);
   const forceNextScrollRef = useRef(false);
+  const pendingAttachmentPreview = useMemo(() => createLocalAttachmentPreview(attachment), [attachment]);
+
+  useEffect(() => {
+    return () => {
+      if (pendingAttachmentPreview?.url) {
+        URL.revokeObjectURL(pendingAttachmentPreview.url);
+      }
+    };
+  }, [pendingAttachmentPreview]);
 
   function createFallbackSenderProfile(sender = '') {
     const nextLabel = String(sender || 'Onbekend').trim() || 'Onbekend';
@@ -586,7 +595,7 @@ export default function PublicChatPage() {
         room_key: 'public',
         sender: senderUsername,
         recipient: null,
-        body: nextBody || (attachment ? attachment.name : ''),
+        body: nextBody || '',
         attachment_url: attachmentUrl,
         attachment_type: attachmentType,
         reply_to_message_id: replyingMessage?.id || null,
@@ -769,13 +778,13 @@ export default function PublicChatPage() {
                               </button>
                             </div>
                           </div>
-                        ) : (
-                          <p className="public-chat__message-text">{message.body || 'Geen berichttekst.'}</p>
-                        )}
+                        ) : message.body ? (
+                          <p className="public-chat__message-text">{message.body}</p>
+                        ) : null}
 
                         {attachmentPreview ? (
                           <div className="chat-bubble__attachment">
-                            {attachmentPreview.kind === 'image' ? <img src={attachmentPreview.url} alt={message.body || 'attachment'} /> : null}
+                            {attachmentPreview.kind === 'image' ? <img src={attachmentPreview.url} alt="Bijlage afbeelding" /> : null}
                             {attachmentPreview.kind === 'video' ? <video src={attachmentPreview.url} controls playsInline /> : null}
                             {attachmentPreview.kind === 'audio' ? <audio src={attachmentPreview.url} controls /> : null}
                             {attachmentPreview.kind === 'file' ? (
@@ -878,7 +887,17 @@ export default function PublicChatPage() {
                 }}
               />
 
-              {attachment ? <div className="chat-page__attachment-chip">Bijlage klaar: {attachment.name}</div> : null}
+              {pendingAttachmentPreview ? (
+                <div className="chat-page__attachment-preview">
+                  {pendingAttachmentPreview.kind === 'image' ? <img src={pendingAttachmentPreview.url} alt="Preview afbeelding" /> : null}
+                  {pendingAttachmentPreview.kind === 'video' ? <video src={pendingAttachmentPreview.url} controls playsInline /> : null}
+                  {pendingAttachmentPreview.kind === 'audio' ? <audio src={pendingAttachmentPreview.url} controls /> : null}
+                  {pendingAttachmentPreview.kind === 'file' ? <span className="chat-page__attachment-preview-file">Bestand klaar om te versturen</span> : null}
+                  <button className="button button--ghost button--compact" type="button" onClick={() => setAttachment(null)}>
+                    Verwijder bijlage
+                  </button>
+                </div>
+              ) : null}
 
               {chatError ? <p className="form-error">{chatError}</p> : null}
             </form>

@@ -4932,6 +4932,36 @@ a {
   color: var(--muted);
 }
 
+.chat-page__attachment-preview {
+  margin-top: 0.7rem;
+  display: grid;
+  gap: 0.65rem;
+  justify-items: start;
+}
+
+.chat-page__attachment-preview img,
+.chat-page__attachment-preview video {
+  width: auto;
+  max-width: 6cm;
+  max-height: 6cm;
+  border-radius: 16px;
+  object-fit: contain;
+  display: block;
+}
+
+.chat-page__attachment-preview audio {
+  width: min(100%, 320px);
+}
+
+.chat-page__attachment-preview-file {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.55rem 0.8rem;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+}
+
 .public-settings__avatar {
   display: grid;
   gap: 0.9rem;

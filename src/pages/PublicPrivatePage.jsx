@@ -5,7 +5,7 @@ import PublicShell from '../components/PublicShell';
 import PublicUserProfileDialog from '../components/PublicUserProfileDialog';
 import SetupNotice from '../components/SetupNotice';
 import UserAvatar from '../components/UserAvatar';
-import { getAttachmentPreview, getChatRoomKey } from '../utils/chat';
+import { createLocalAttachmentPreview, getAttachmentPreview, getChatRoomKey } from '../utils/chat';
 import { formatRelativeTime } from '../utils/dates';
 import {
   DEFAULT_PUBLIC_USERS,
@@ -92,8 +92,17 @@ export default function PublicPrivatePage() {
   const [replyingMessage, setReplyingMessage] = useState(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [selectedProfile, setSelectedProfile] = useState(null);
+  const pendingAttachmentPreview = useMemo(() => createLocalAttachmentPreview(attachment), [attachment]);
 
   const requestedPeerUsername = useMemo(() => parsePeerFromSearch(location.search), [location.search]);
+
+  useEffect(() => {
+    return () => {
+      if (pendingAttachmentPreview?.url) {
+        URL.revokeObjectURL(pendingAttachmentPreview.url);
+      }
+    };
+  }, [pendingAttachmentPreview]);
 
   useEffect(() => {
     allowedUsersRef.current = allowedUsers;
@@ -419,7 +428,7 @@ export default function PublicPrivatePage() {
         room_key: roomKey,
         sender: senderUsername,
         recipient: activePeer.username,
-        body: draft.trim() || (attachment ? attachment.name : ''),
+        body: draft.trim() || '',
         attachment_url: attachmentUrl,
         attachment_type: attachmentType,
         reply_to_message_id: replyingMessage?.id || null,
@@ -439,7 +448,7 @@ export default function PublicPrivatePage() {
           room_key: roomKey,
           sender: senderUsername,
           recipient: activePeer.username,
-          body: draft.trim() || (attachment ? attachment.name : ''),
+          body: draft.trim() || '',
           attachment_url: attachmentUrl,
           attachment_type: attachmentType
         };
@@ -728,13 +737,13 @@ export default function PublicPrivatePage() {
                             </button>
                           </div>
                         </div>
-                      ) : (
+                      ) : message.body ? (
                         <p>{message.body}</p>
-                      )}
+                      ) : null}
 
                       {attachmentPreview ? (
                         <div className="chat-bubble__attachment">
-                          {attachmentPreview.kind === 'image' ? <img src={attachmentPreview.url} alt={message.body || 'attachment'} /> : null}
+                          {attachmentPreview.kind === 'image' ? <img src={attachmentPreview.url} alt="Bijlage afbeelding" /> : null}
                           {attachmentPreview.kind === 'video' ? <video src={attachmentPreview.url} controls playsInline /> : null}
                           {attachmentPreview.kind === 'audio' ? <audio src={attachmentPreview.url} controls /> : null}
                           {attachmentPreview.kind === 'file' ? (
@@ -800,11 +809,22 @@ export default function PublicPrivatePage() {
                 onChange={(event) => {
                   const file = event.target.files?.[0] || null;
                   setAttachment(file);
+                  event.target.value = '';
                 }}
               />
             </form>
 
-            {attachment ? <div className="chat-page__attachment-chip">Bijlage: {attachment.name}</div> : null}
+            {pendingAttachmentPreview ? (
+              <div className="chat-page__attachment-preview">
+                {pendingAttachmentPreview.kind === 'image' ? <img src={pendingAttachmentPreview.url} alt="Preview afbeelding" /> : null}
+                {pendingAttachmentPreview.kind === 'video' ? <video src={pendingAttachmentPreview.url} controls playsInline /> : null}
+                {pendingAttachmentPreview.kind === 'audio' ? <audio src={pendingAttachmentPreview.url} controls /> : null}
+                {pendingAttachmentPreview.kind === 'file' ? <span className="chat-page__attachment-preview-file">Bestand klaar om te versturen</span> : null}
+                <button className="button button--ghost button--compact" type="button" onClick={() => setAttachment(null)}>
+                  Verwijder bijlage
+                </button>
+              </div>
+            ) : null}
             {chatError ? <div className="error-message chat-page__error">{chatError}</div> : null}
           </div>
 

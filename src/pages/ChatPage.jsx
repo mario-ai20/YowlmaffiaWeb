@@ -5,7 +5,7 @@ import UserAvatar from '../components/UserAvatar';
 import UserProfileDialog from '../components/UserProfileDialog';
 import { supabase } from '../utils/supabase';
 import { ensureAllowedUserRow, findAllowedUser, getAllowedUserDisplayLabel, normalizeUsername } from '../utils/users';
-import { getAttachmentPreview, getChatLabel, getChatRoomKey } from '../utils/chat';
+import { createLocalAttachmentPreview, getAttachmentPreview, getChatLabel, getChatRoomKey } from '../utils/chat';
 import { formatRelativeTime } from '../utils/dates';
 
 function resolvePresenceStatus(user, onlineUsernames = [], currentUsername = '', nowTick = Date.now()) {
@@ -68,6 +68,7 @@ export default function ChatPage({
   const [selectedProfile, setSelectedProfile] = useState(null);
   const fileInputRef = useRef(null);
   const listRef = useRef(null);
+  const pendingAttachmentPreview = useMemo(() => createLocalAttachmentPreview(attachment), [attachment]);
 
   const peers = useMemo(
     () => allowedUsers.filter((user) => normalizeUsername(user.username) !== normalizeUsername(currentUser?.username)),
@@ -111,6 +112,14 @@ export default function ChatPage({
 
   const roomKey = useMemo(() => getChatRoomKey(scope, currentUser, peerUsername), [scope, currentUser, peerUsername]);
   const roomLabel = getChatLabel(scope, currentUser, peerUsername);
+
+  useEffect(() => {
+    return () => {
+      if (pendingAttachmentPreview?.url) {
+        URL.revokeObjectURL(pendingAttachmentPreview.url);
+      }
+    };
+  }, [pendingAttachmentPreview]);
 
   useEffect(() => {
     if (!currentUser || !supabase) {
@@ -268,7 +277,7 @@ export default function ChatPage({
         room_key: roomKey,
         sender: currentUser.displayName || 'Onbekend',
         recipient: scope === 'private' ? peerUsername : null,
-        body: draft.trim() || (attachment ? attachment.name : ''),
+        body: draft.trim() || '',
         attachment_url: attachmentUrl,
         attachment_type: attachmentType,
         reply_to_message_id: replyingMessage?.id || null,
@@ -288,7 +297,7 @@ export default function ChatPage({
           room_key: roomKey,
           sender: currentUser.displayName || 'Onbekend',
           recipient: scope === 'private' ? peerUsername : null,
-          body: draft.trim() || (attachment ? attachment.name : ''),
+          body: draft.trim() || '',
           attachment_url: attachmentUrl,
           attachment_type: attachmentType
         };
@@ -534,13 +543,13 @@ export default function ChatPage({
                           </button>
                         </div>
                       </div>
-                    ) : (
+                    ) : message.body ? (
                       <p>{message.body}</p>
-                    )}
+                    ) : null}
 
                     {attachmentPreview ? (
                       <div className="chat-bubble__attachment">
-                        {attachmentPreview.kind === 'image' ? <img src={attachmentPreview.url} alt={message.body} /> : null}
+                        {attachmentPreview.kind === 'image' ? <img src={attachmentPreview.url} alt="Bijlage afbeelding" /> : null}
                         {attachmentPreview.kind === 'video' ? <video src={attachmentPreview.url} controls playsInline /> : null}
                         {attachmentPreview.kind === 'audio' ? <audio src={attachmentPreview.url} controls /> : null}
                         {attachmentPreview.kind === 'file' ? (
@@ -599,7 +608,17 @@ export default function ChatPage({
             />
           </form>
 
-          {attachment ? <div className="chat-page__attachment-chip">Bijlage klaar: {attachment.name}</div> : null}
+          {pendingAttachmentPreview ? (
+            <div className="chat-page__attachment-preview">
+              {pendingAttachmentPreview.kind === 'image' ? <img src={pendingAttachmentPreview.url} alt="Preview afbeelding" /> : null}
+              {pendingAttachmentPreview.kind === 'video' ? <video src={pendingAttachmentPreview.url} controls playsInline /> : null}
+              {pendingAttachmentPreview.kind === 'audio' ? <audio src={pendingAttachmentPreview.url} controls /> : null}
+              {pendingAttachmentPreview.kind === 'file' ? <span className="chat-page__attachment-preview-file">Bestand klaar om te versturen</span> : null}
+              <button className="button button--ghost button--compact" type="button" onClick={() => setAttachment(null)}>
+                Verwijder bijlage
+              </button>
+            </div>
+          ) : null}
           {chatError ? <div className="form-error chat-page__error">{chatError}</div> : null}
         </div>
 
