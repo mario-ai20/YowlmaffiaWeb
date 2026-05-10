@@ -595,7 +595,7 @@ export function resolvePublicUserFromSession(session, allowedUsers = DEFAULT_PUB
 
 export async function loadPublicAllowedUsers() {
   if (!publicChatSupabase) {
-    return [];
+    return dedupePublicAllowedUsers(DEFAULT_PUBLIC_USERS);
   }
 
   const selectAllowedUsers = async (fields) =>
@@ -618,10 +618,10 @@ export async function loadPublicAllowedUsers() {
   }
 
   if (error || !Array.isArray(data) || !data.length) {
-    return [];
+    return dedupePublicAllowedUsers(DEFAULT_PUBLIC_USERS);
   }
 
-  return dedupePublicAllowedUsers(data);
+  return dedupePublicAllowedUsers([...data, ...DEFAULT_PUBLIC_USERS]);
 }
 
 export async function ensurePublicAllowedUserRow() {

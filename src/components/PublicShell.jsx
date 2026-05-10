@@ -19,6 +19,10 @@ function resolveThemeMode(mode) {
   return 'dark';
 }
 
+function normalizeIdentity(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
 export default function PublicShell({
   user,
   onSignOut,
@@ -162,23 +166,32 @@ export default function PublicShell({
   }, [user?.id, user?.username]);
 
   useEffect(() => {
-    if (!publicChatSupabase || !user?.email) {
+    if (!publicChatSupabase || (!user?.email && !user?.username)) {
       setPrivateUnreadCount(0);
       setTargetedWarning(null);
       return undefined;
     }
 
     let cancelled = false;
+    const normalizedEmail = normalizeIdentity(user?.email);
+    const normalizedUsername = normalizeIdentity(user?.username);
 
     async function loadNotificationState() {
       const { data, error } = await publicChatSupabase
         .from('notifications')
-        .select('id, kind, title, body, actor_username, is_read, metadata, created_at')
-        .eq('recipient_email', user.email)
-        .order('created_at', { ascending: false });
+        .select('id, kind, title, body, actor_username, recipient_email, recipient_username, is_read, metadata, created_at')
+        .order('created_at', { ascending: false })
+        .limit(100);
 
       if (!cancelled) {
-        const rows = error ? [] : (data || []);
+        const rows = (error ? [] : (data || [])).filter((notification) => {
+          const notificationEmail = normalizeIdentity(notification?.recipient_email);
+          const notificationUsername = normalizeIdentity(notification?.recipient_username);
+          return (
+            (normalizedEmail && notificationEmail === normalizedEmail) ||
+            (normalizedUsername && notificationUsername === normalizedUsername)
+          );
+        });
         setPrivateUnreadCount(rows.filter((notification) => notification.kind === 'private_message' && notification.is_read === false).length);
         setTargetedWarning(rows.find((notification) => notification.kind === 'targeted_warning' && notification.is_read === false) || null);
       }
@@ -187,11 +200,24 @@ export default function PublicShell({
     loadNotificationState();
 
     const channel = publicChatSupabase
-      .channel(`public-private-notifications-${user.email}`)
+      .channel(`public-private-notifications-${user.email || user.username || 'unknown'}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'notifications', filter: `recipient_email=eq.${user.email}` },
+        { event: '*', schema: 'public', table: 'notifications' },
         (payload) => {
+          const nextRecipientEmail = normalizeIdentity(payload?.new?.recipient_email);
+          const nextRecipientUsername = normalizeIdentity(payload?.new?.recipient_username);
+          const previousRecipientEmail = normalizeIdentity(payload?.old?.recipient_email);
+          const previousRecipientUsername = normalizeIdentity(payload?.old?.recipient_username);
+          const affectsCurrentUser = (
+            (normalizedEmail && (nextRecipientEmail === normalizedEmail || previousRecipientEmail === normalizedEmail)) ||
+            (normalizedUsername && (nextRecipientUsername === normalizedUsername || previousRecipientUsername === normalizedUsername))
+          );
+
+          if (!affectsCurrentUser) {
+            return;
+          }
+
           loadNotificationState();
 
           if (
@@ -244,7 +270,7 @@ export default function PublicShell({
       }
       publicChatSupabase.removeChannel(channel);
     };
-  }, [user?.email]);
+  }, [user?.email, user?.username]);
 
   useEffect(() => {
     if (!targetedWarning) {
@@ -270,15 +296,18 @@ export default function PublicShell({
     setWarningBusy(true);
 
     try {
+      const recipientColumn = user?.email ? 'recipient_email' : 'recipient_username';
+      const recipientValue = user?.email || user?.username || '';
+
       await publicChatSupabase
         .from('notifications')
         .update({ is_read: true, read_at: new Date().toISOString() })
         .eq('id', targetedWarning.id)
-        .eq('recipient_email', user.email);
+        .eq(recipientColumn, recipientValue);
       const { data } = await publicChatSupabase
         .from('notifications')
         .select('id, kind, title, body, actor_username, is_read, metadata, created_at')
-        .eq('recipient_email', user.email)
+        .eq(recipientColumn, recipientValue)
         .eq('kind', 'targeted_warning')
         .eq('is_read', false)
         .order('created_at', { ascending: false })

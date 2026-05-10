@@ -4353,6 +4353,30 @@ a {
   gap: 0.85rem;
 }
 
+.public-manage__warning-group {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.public-manage__warning-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding-bottom: 0.15rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+}
+
+.public-manage__warning-group-head strong {
+  color: var(--text);
+  font-size: 0.96rem;
+}
+
+.public-manage__warning-group-head span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
 .public-manage__warning-log-item {
   display: grid;
   gap: 0.55rem;

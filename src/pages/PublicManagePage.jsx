@@ -1,4 +1,4 @@
-import { Check, RefreshCw, Save, Sparkles, Upload } from 'lucide-react';
+import { Check, RefreshCw, Save, Sparkles, Trash2, Upload } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router';
 import MusicReleaseCard from '../components/MusicReleaseCard';
@@ -82,6 +82,22 @@ export default function PublicManagePage() {
     () => allowedUsers.filter((user) => String(user?.email || '').trim() && String(user?.email || '').trim() !== String(currentUser?.email || '').trim()),
     [allowedUsers, currentUser?.email]
   );
+  const groupedWarningLog = useMemo(() => {
+    const groups = new Map();
+
+    for (const entry of warningLog) {
+      const key = String(entry?.recipient_email || entry?.recipient_username || 'onbekend').trim().toLowerCase();
+      const label = entry?.recipient_username || entry?.recipient_email || 'Onbekende gebruiker';
+
+      if (!groups.has(key)) {
+        groups.set(key, { key, label, items: [] });
+      }
+
+      groups.get(key).items.push(entry);
+    }
+
+    return Array.from(groups.values());
+  }, [warningLog]);
 
   useEffect(() => {
     if (!warningRecipients.length) {
@@ -429,6 +445,35 @@ export default function PublicManagePage() {
       setMessage('Nieuwe update gepubliceerd.');
     } catch (publishError) {
       setError(publishError?.message || 'Update publiceren mislukt.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeleteWarningEntry(entryId) {
+    if (!publicChatSupabase || !canSendAlerts || !entryId) {
+      return;
+    }
+
+    setSaving(true);
+    setMessage('');
+    setError('');
+
+    try {
+      const { error: deleteError } = await publicChatSupabase
+        .from('notifications')
+        .delete()
+        .eq('id', entryId)
+        .eq('kind', 'targeted_warning');
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      setWarningLog((previous) => previous.filter((entry) => entry.id !== entryId));
+      setMessage('Warning verwijderd uit het logboek.');
+    } catch (deleteError) {
+      setError(deleteError?.message || 'Warning verwijderen mislukt.');
     } finally {
       setSaving(false);
     }
@@ -845,27 +890,43 @@ export default function PublicManagePage() {
                 <h2>Bijgehouden waarschuwingen</h2>
               </div>
 
-              {warningLog.length ? (
+              {groupedWarningLog.length ? (
                 <div className="public-manage__warning-log">
-                  {warningLog.map((entry) => {
-                    const sentBy = String(entry?.metadata?.sent_by_manager || '').trim();
-                    const recipientLabel = entry.recipient_username || entry.recipient_email || 'Onbekende gebruiker';
+                  {groupedWarningLog.map((group) => (
+                    <section key={group.key} className="public-manage__warning-group">
+                      <div className="public-manage__warning-group-head">
+                        <strong>{group.label}</strong>
+                        <span>{group.items.length} waarschuwing{group.items.length === 1 ? '' : 'en'}</span>
+                      </div>
 
-                    return (
-                      <article key={entry.id} className="public-manage__warning-log-item">
-                        <div className="public-manage__warning-log-head">
-                          <strong>{recipientLabel}</strong>
-                          <span>{formatRelativeTime(entry.created_at)}</span>
-                        </div>
-                        <p>{entry.body || entry.title}</p>
-                        <div className="public-manage__warning-log-meta">
-                          <span>Verzonden als YOWLMAFFIA</span>
-                          {sentBy ? <span>Door {sentBy}</span> : null}
-                          <span>{entry.is_read ? 'Gelezen' : 'Nog niet gelezen'}</span>
-                        </div>
-                      </article>
-                    );
-                  })}
+                      {group.items.map((entry) => {
+                        const sentBy = String(entry?.metadata?.sent_by_manager || '').trim();
+
+                        return (
+                          <article key={entry.id} className="public-manage__warning-log-item">
+                            <div className="public-manage__warning-log-head">
+                              <strong>{formatRelativeTime(entry.created_at)}</strong>
+                              <button
+                                className="button button--ghost button--compact"
+                                type="button"
+                                onClick={() => void handleDeleteWarningEntry(entry.id)}
+                                disabled={saving}
+                              >
+                                <Trash2 size={15} />
+                                Verwijder
+                              </button>
+                            </div>
+                            <p>{entry.body || entry.title}</p>
+                            <div className="public-manage__warning-log-meta">
+                              <span>Verzonden als YOWLMAFFIA</span>
+                              {sentBy ? <span>Door {sentBy}</span> : null}
+                              <span>{entry.is_read ? 'Gelezen' : 'Nog niet gelezen'}</span>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </section>
+                  ))}
                 </div>
               ) : (
                 <div className="empty-state empty-state--compact">
