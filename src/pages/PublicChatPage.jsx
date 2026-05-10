@@ -35,12 +35,32 @@ function getBrusselsDateKey(timestamp) {
   return `${year}-${month}-${day}`;
 }
 
-function formatCountdownToMidnight(timestamp) {
-  const now = new Date(timestamp);
-  const nextMidnight = new Date(now);
-  nextMidnight.setHours(24, 0, 0, 0);
+function getBrusselsDateTimeParts(timestamp) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Brussels',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(new Date(timestamp));
 
-  const remainingMs = Math.max(0, nextMidnight.getTime() - now.getTime());
+  const read = (type, fallback) => Number.parseInt(parts.find((part) => part.type === type)?.value || fallback, 10);
+
+  return {
+    year: read('year', '0'),
+    month: read('month', '1'),
+    day: read('day', '1'),
+    hour: read('hour', '0'),
+    minute: read('minute', '0'),
+    second: read('second', '0')
+  };
+}
+
+function formatCountdownToMidnight(timestamp) {
+  const remainingMs = getMsUntilNextMidnight(timestamp);
   const totalSeconds = Math.floor(remainingMs / 1000);
   const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
   const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
@@ -49,10 +69,25 @@ function formatCountdownToMidnight(timestamp) {
 }
 
 function getMsUntilNextMidnight(timestamp = Date.now()) {
-  const now = new Date(timestamp);
-  const nextMidnight = new Date(now);
-  nextMidnight.setHours(24, 0, 0, 0);
-  return Math.max(1000, nextMidnight.getTime() - now.getTime());
+  const nowParts = getBrusselsDateTimeParts(timestamp);
+  const currentBrusselsInstant = Date.UTC(
+    nowParts.year,
+    nowParts.month - 1,
+    nowParts.day,
+    nowParts.hour,
+    nowParts.minute,
+    nowParts.second
+  );
+  const nextBrusselsMidnightInstant = Date.UTC(
+    nowParts.year,
+    nowParts.month - 1,
+    nowParts.day + 1,
+    0,
+    0,
+    0
+  );
+
+  return Math.max(1000, nextBrusselsMidnightInstant - currentBrusselsInstant);
 }
 
 function getPublicChatIdentitySet(user) {
@@ -436,13 +471,31 @@ export default function PublicChatPage() {
       }, getMsUntilNextMidnight());
     }
 
+    void ensureDailyReset();
     scheduleDailyReset();
+
+    const handleWake = () => {
+      void ensureDailyReset();
+    };
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        void ensureDailyReset();
+      }
+    };
+
+    window.addEventListener('focus', handleWake);
+    window.addEventListener('online', handleWake);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       cancelled = true;
       if (resetTimer) {
         window.clearTimeout(resetTimer);
       }
+      window.removeEventListener('focus', handleWake);
+      window.removeEventListener('online', handleWake);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [currentUser?.username]);
 
