@@ -1,4 +1,4 @@
-import { AlertTriangle, Bell, LayoutDashboard, LogOut, MessagesSquare, Share2, ShieldEllipsis, X } from 'lucide-react';
+import { AlertTriangle, AppWindow, Bell, LayoutDashboard, LogOut, MessagesSquare, Share2, ShieldEllipsis, X } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import BrandMark from './BrandMark';
@@ -341,6 +341,10 @@ export default function PublicShell({
           <NavLink end to="/public/social" className={({ isActive }) => `nav-link ${isActive ? 'is-active' : ''}`}>
             <Share2 size={16} />
             Social
+          </NavLink>
+          <NavLink end to="/public/apps" className={({ isActive }) => `nav-link ${isActive ? 'is-active' : ''}`}>
+            <AppWindow size={16} />
+            Onze apps
           </NavLink>
           {canManageAlerts ? (
             <NavLink end to="/public/beheren" className={({ isActive }) => `nav-link nav-link--ghost ${isActive ? 'is-active' : ''}`.trim()}>

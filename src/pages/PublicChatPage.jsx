@@ -4,6 +4,7 @@ import { Navigate, useNavigate } from 'react-router';
 import ChatMediaLightbox from '../components/ChatMediaLightbox';
 import PublicShell from '../components/PublicShell';
 import PublicUserProfileDialog from '../components/PublicUserProfileDialog';
+import RichTextContent from '../components/RichTextContent';
 import UserAvatar from '../components/UserAvatar';
 import { publicChatSupabase, isPublicChatSupabaseConfigured } from '../utils/supabase';
 import { createLocalAttachmentPreview, getAttachmentPreview } from '../utils/chat';
@@ -833,7 +834,7 @@ export default function PublicChatPage() {
                             </div>
                           </div>
                         ) : message.body ? (
-                          <p className="public-chat__message-text">{message.body}</p>
+                          <RichTextContent className="public-chat__message-text" text={message.body} />
                         ) : null}
 
                         {attachmentPreview ? (

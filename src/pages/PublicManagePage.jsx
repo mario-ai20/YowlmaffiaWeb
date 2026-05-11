@@ -19,6 +19,11 @@ import {
   normalizeSocialLinkPayload
 } from '../utils/socialLinks';
 import {
+  loadOurApps,
+  normalizeOurApp,
+  normalizeOurAppPayload
+} from '../utils/ourApps';
+import {
   createSpotifySearchUrl,
   loadMusicReleases as loadMusicReleasesFromDatabase,
   normalizeMusicRelease
@@ -70,6 +75,10 @@ export default function PublicManagePage() {
   const [musicCoverPreview, setMusicCoverPreview] = useState('');
   const [musicReleases, setMusicReleases] = useState([]);
   const [socialLinks, setSocialLinks] = useState(createDefaultSocialLinks());
+  const [ourApps, setOurApps] = useState([]);
+  const [ourAppName, setOurAppName] = useState('');
+  const [ourAppDescription, setOurAppDescription] = useState('');
+  const [ourAppUrl, setOurAppUrl] = useState('');
   const [alertBody, setAlertBody] = useState('');
   const [warningRecipientEmail, setWarningRecipientEmail] = useState('');
   const [warningBody, setWarningBody] = useState('');
@@ -202,12 +211,13 @@ export default function PublicManagePage() {
     async function bootstrapManage() {
       setLoadingPage(true);
 
-      const [buildResult, infoResult, rulesResult, musicResult, socialResult, updateResult, warningResult] = await Promise.all([
+      const [buildResult, infoResult, rulesResult, musicResult, socialResult, ourAppsResult, updateResult, warningResult] = await Promise.all([
         publicChatSupabase.from('app_build_state').select('build_number, published_at, created_at, updated_at').eq('id', 'current').maybeSingle(),
         publicChatSupabase.from('app_info_blocks').select('*').eq('id', 'current').maybeSingle(),
         publicChatSupabase.from('app_info_blocks').select('*').eq('id', 'rules').maybeSingle(),
         loadMusicReleasesFromDatabase(publicChatSupabase).catch(() => []),
         loadSocialLinks(publicChatSupabase).catch(() => createDefaultSocialLinks()),
+        loadOurApps(publicChatSupabase).catch(() => []),
         publicChatSupabase
           .from('app_update_releases')
           .select('version, download_url, notes, is_required, published_at, created_at')
@@ -254,6 +264,7 @@ export default function PublicManagePage() {
 
       setMusicReleases(Array.isArray(musicResult) ? musicResult.map(normalizeMusicRelease) : []);
       setSocialLinks(Array.isArray(socialResult) && socialResult.length ? socialResult : createDefaultSocialLinks());
+      setOurApps(Array.isArray(ourAppsResult) ? ourAppsResult.map(normalizeOurApp) : []);
       setLatestUpdate(Array.isArray(updateResult?.data) ? updateResult.data[0] || null : null);
       setWarningLog(Array.isArray(warningResult?.data) ? warningResult.data : []);
       setLoadingPage(false);
@@ -286,6 +297,11 @@ export default function PublicManagePage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'app_social_links' }, bootstrapManage)
       .subscribe();
 
+    const ourAppsChannel = publicChatSupabase
+      .channel('public-manage-our-apps-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_our_apps' }, bootstrapManage)
+      .subscribe();
+
     const warningChannel = publicChatSupabase
       .channel('public-manage-warning-log-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, bootstrapManage)
@@ -298,6 +314,7 @@ export default function PublicManagePage() {
       publicChatSupabase.removeChannel(updateChannel);
       publicChatSupabase.removeChannel(musicChannel);
       publicChatSupabase.removeChannel(socialChannel);
+      publicChatSupabase.removeChannel(ourAppsChannel);
       publicChatSupabase.removeChannel(warningChannel);
     };
   }, [currentUser, isMattiz, canSendAlerts]);
@@ -589,6 +606,83 @@ export default function PublicManagePage() {
       setMessage('Social media links opgeslagen.');
     } catch (saveError) {
       setError(saveError.message || 'Social media links opslaan mislukt.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSaveOurApp(event) {
+    event.preventDefault();
+
+    if (!publicChatSupabase) {
+      setError('Public Supabase is niet gekoppeld.');
+      return;
+    }
+
+    if (!isMattiz) {
+      setError('Alleen Mattiz kan onze apps beheren.');
+      return;
+    }
+
+    const nextName = String(ourAppName || '').trim();
+    const nextUrl = String(ourAppUrl || '').trim();
+
+    if (!nextName || !nextUrl) {
+      setError('Vul minstens een naam en link in.');
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+    setMessage('');
+
+    try {
+      const payload = normalizeOurAppPayload(
+        {
+          name: nextName,
+          description: ourAppDescription,
+          url: nextUrl,
+          sortOrder: ourApps.length + 1
+        },
+        ourApps.length + 1
+      );
+      const { error: upsertError } = await publicChatSupabase.from('app_our_apps').insert(payload).select('*').single();
+
+      if (upsertError) {
+        throw upsertError;
+      }
+
+      setOurAppName('');
+      setOurAppDescription('');
+      setOurAppUrl('');
+      setMessage('Nieuwe YOWLMAFFIA app-link opgeslagen.');
+    } catch (saveError) {
+      setError(saveError?.message || 'App-link opslaan mislukt.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeleteOurApp(appId) {
+    if (!publicChatSupabase || !isMattiz || !appId) {
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+    setMessage('');
+
+    try {
+      const { error: deleteError } = await publicChatSupabase.from('app_our_apps').delete().eq('id', appId);
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      setOurApps((previous) => previous.filter((item) => item.id !== appId));
+      setMessage('App-link verwijderd.');
+    } catch (deleteError) {
+      setError(deleteError?.message || 'App-link verwijderen mislukt.');
     } finally {
       setSaving(false);
     }
@@ -1169,6 +1263,83 @@ export default function PublicManagePage() {
               <Save size={16} />
               Social links opslaan
             </button>
+          </form>
+
+          <form className="panel public-manage__card public-manage__card--social" onSubmit={handleSaveOurApp}>
+            <div className="panel__header panel__header--compact">
+              <span className="eyebrow">Onze apps</span>
+              <h2>Links naar andere YOWLMAFFIA apps</h2>
+            </div>
+
+            <div className="public-manage__music-grid">
+              <label className="field">
+                <span>Naam van de app</span>
+                <input
+                  className="input"
+                  value={ourAppName}
+                  onChange={(event) => setOurAppName(event.target.value)}
+                  placeholder="YOWL Player"
+                />
+              </label>
+
+              <label className="field">
+                <span>Link</span>
+                <input
+                  className="input"
+                  value={ourAppUrl}
+                  onChange={(event) => setOurAppUrl(event.target.value)}
+                  placeholder="https://..."
+                />
+              </label>
+            </div>
+
+            <label className="field">
+              <span>Korte beschrijving</span>
+              <input
+                className="input"
+                value={ourAppDescription}
+                onChange={(event) => setOurAppDescription(event.target.value)}
+                placeholder="Korte uitleg over deze app"
+              />
+            </label>
+
+            <button className="button button--primary" type="submit" disabled={saving}>
+              <Save size={16} />
+              App-link opslaan
+            </button>
+
+            {ourApps.length ? (
+              <div className="public-manage__social-list">
+                {ourApps.map((item) => (
+                  <div key={item.id || item.name} className="public-manage__social-row public-manage__our-app-row">
+                    <div className="public-manage__social-platform">
+                      <div className="public-manage__social-icon">
+                        <Sparkles size={18} />
+                      </div>
+                      <div>
+                        <strong>{item.name}</strong>
+                        <span>{item.description || item.url}</span>
+                      </div>
+                    </div>
+
+                    <div className="public-manage__our-app-actions">
+                      <a className="button button--ghost button--compact" href={item.url} target="_blank" rel="noreferrer">
+                        Open
+                      </a>
+                      <button
+                        className="button button--ghost button--compact"
+                        type="button"
+                        onClick={() => void handleDeleteOurApp(item.id)}
+                        disabled={saving}
+                      >
+                        <Trash2 size={15} />
+                        Verwijder
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </form>
 
           <form className="panel public-manage__card public-manage__card--music" onSubmit={handleSaveMusicRelease}>

@@ -27,6 +27,7 @@ const PublicDashboardPage = lazy(() => import('./pages/PublicDashboardPage'));
 const PublicChatPage = lazy(() => import('./pages/PublicChatPage'));
 const PublicPrivatePage = lazy(() => import('./pages/PublicPrivatePage'));
 const PublicSocialPage = lazy(() => import('./pages/PublicSocialPage'));
+const PublicAppsPage = lazy(() => import('./pages/PublicAppsPage'));
 const PublicSettingsPage = lazy(() => import('./pages/PublicSettingsPage'));
 const PublicManagePage = lazy(() => import('./pages/PublicManagePage'));
 const SetupNotice = lazy(() => import('./components/SetupNotice'));
@@ -2392,6 +2393,10 @@ export default function App() {
         <Route
           path="/public/social"
           element={<PublicSocialPage />}
+        />
+        <Route
+          path="/public/apps"
+          element={<PublicAppsPage />}
         />
         <Route
           path="/public/settings"

@@ -1,4 +1,5 @@
 import { Fragment } from 'react';
+import { openExternalUrl } from '../utils/yowl';
 
 const COLOR_MAP = {
   rood: '#ff4d5a',
@@ -76,6 +77,62 @@ function findColorToken(text) {
   };
 }
 
+function normalizeUrl(url) {
+  const value = String(url || '').trim();
+  if (!value) {
+    return '';
+  }
+
+  return /^https?:\/\//i.test(value) ? value : `https://${value}`;
+}
+
+function renderPlainWithLinks(text, keyPrefix) {
+  const parts = [];
+  const pattern = /((?:https?:\/\/|www\.)[^\s<]+)/gi;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = pattern.exec(text)) !== null) {
+    const [rawUrl] = match;
+    const start = match.index;
+
+    if (start > lastIndex) {
+      parts.push(<Fragment key={`${keyPrefix}-text-${lastIndex}`}>{text.slice(lastIndex, start)}</Fragment>);
+    }
+
+    const safeHref = normalizeUrl(rawUrl);
+    const trimmedLabel = rawUrl.replace(/[),.;!?]+$/g, '');
+    const trailing = rawUrl.slice(trimmedLabel.length);
+
+    parts.push(
+      <a
+        key={`${keyPrefix}-link-${start}`}
+        href={normalizeUrl(trimmedLabel)}
+        target="_blank"
+        rel="noreferrer"
+        onClick={(event) => {
+          event.preventDefault();
+          void openExternalUrl(safeHref.replace(/[),.;!?]+$/g, ''));
+        }}
+      >
+        {trimmedLabel}
+      </a>
+    );
+
+    if (trailing) {
+      parts.push(<Fragment key={`${keyPrefix}-trail-${start}`}>{trailing}</Fragment>);
+    }
+
+    lastIndex = start + rawUrl.length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(<Fragment key={`${keyPrefix}-text-end`}>{text.slice(lastIndex)}</Fragment>);
+  }
+
+  return parts.length ? parts : [<Fragment key={`${keyPrefix}-plain`}>{text}</Fragment>];
+}
+
 function renderInline(text, keyPrefix = 'inline') {
   const colorToken = findColorToken(text);
   if (colorToken) {
@@ -117,7 +174,7 @@ function renderInline(text, keyPrefix = 'inline') {
       return styled;
     }
 
-    return <Fragment key={`${keyPrefix}-${index}`}>{token}</Fragment>;
+    return <Fragment key={`${keyPrefix}-${index}`}>{renderPlainWithLinks(token, `${keyPrefix}-${index}`)}</Fragment>;
   });
 }
 

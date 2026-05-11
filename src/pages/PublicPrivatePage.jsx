@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router';
 import ChatMediaLightbox from '../components/ChatMediaLightbox';
 import PublicShell from '../components/PublicShell';
 import PublicUserProfileDialog from '../components/PublicUserProfileDialog';
+import RichTextContent from '../components/RichTextContent';
 import SetupNotice from '../components/SetupNotice';
 import UserAvatar from '../components/UserAvatar';
 import { createLocalAttachmentPreview, getAttachmentPreview, getChatRoomKey } from '../utils/chat';
@@ -739,7 +740,7 @@ export default function PublicPrivatePage() {
                           </div>
                         </div>
                       ) : message.body ? (
-                        <p>{message.body}</p>
+                        <RichTextContent text={message.body} />
                       ) : null}
 
                       {attachmentPreview ? (

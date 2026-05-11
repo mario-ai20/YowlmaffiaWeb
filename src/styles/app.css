@@ -3300,6 +3300,23 @@ a {
   word-break: break-word;
 }
 
+.rich-text-content a,
+.public-chat__message-text a,
+.public-private__message-text a,
+.chat-bubble p a {
+  color: var(--accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 0.14em;
+  word-break: break-all;
+}
+
+.rich-text-content a:hover,
+.public-chat__message-text a:hover,
+.public-private__message-text a:hover,
+.chat-bubble p a:hover {
+  color: var(--accent);
+}
+
 .public-manage__format-help {
   margin: -0.2rem 0 0;
   color: var(--muted);
@@ -4146,6 +4163,17 @@ a {
 
 .public-manage__social-field .input {
   width: 100%;
+}
+
+.public-manage__our-app-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.public-manage__our-app-actions {
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .public-manage__card {
