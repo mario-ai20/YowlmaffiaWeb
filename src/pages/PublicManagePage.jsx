@@ -5,7 +5,7 @@ import MusicReleaseCard from '../components/MusicReleaseCard';
 import PublicShell from '../components/PublicShell';
 import RichTextContent from '../components/RichTextContent';
 import { formatRelativeTime } from '../utils/dates';
-import { publicChatSupabase, isPublicChatSupabaseConfigured } from '../utils/supabase';
+import { publicChatSupabase, isPublicChatSupabaseConfigured, supabase } from '../utils/supabase';
 import {
   canManagePublicAlerts,
   isMattizPublicUser,
@@ -28,6 +28,7 @@ import {
   loadMusicReleases as loadMusicReleasesFromDatabase,
   normalizeMusicRelease
 } from '../utils/musicReleases';
+import { announceMusicReleaseInChats } from '../utils/releaseAnnouncements';
 import SocialPlatformIcon from '../components/SocialPlatformIcon';
 
 function blankInfo(title, body) {
@@ -563,6 +564,12 @@ export default function PublicManagePage() {
           setMusicReleases((previous) => {
             const nextReleases = [normalizedRelease, ...previous.filter((item) => item.id !== normalizedRelease.id)];
             return nextReleases.sort((left, right) => Number(left.sortOrder || 0) - Number(right.sortOrder || 0));
+          });
+
+          await announceMusicReleaseInChats({
+            release: normalizedRelease,
+            publicClient: publicChatSupabase,
+            internalClient: supabase
           });
         }
 

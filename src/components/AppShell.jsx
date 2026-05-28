@@ -2,8 +2,10 @@ import { Bell, Library, LogOut, LayoutDashboard, MessagesSquare, ShieldEllipsis 
 import { NavLink } from 'react-router';
 import { useEffect, useMemo, useState } from 'react';
 import BrandMark from './BrandMark';
+import { wakeBackendScope, useBackendStatus } from '../utils/backendStatus';
 import { getBuildState, subscribeToBuildState } from '../utils/buildInfo';
 import SettingsMenu from './SettingsMenu';
+import { supabase } from '../utils/supabase';
 import { getAllowedUserDisplayLabel, isMattizAllowedUser } from '../utils/users';
 import UserAvatar from './UserAvatar';
 
@@ -34,6 +36,7 @@ export default function AppShell({
   const [nowTick, setNowTick] = useState(() => Date.now());
   const isMattiz = isMattizAllowedUser(user);
   const isWebApp = typeof window !== 'undefined' && !window.desktop;
+  const backendStatusText = useBackendStatus('internal');
 
   const headerDateTime = useMemo(() => {
     try {
@@ -110,6 +113,26 @@ export default function AppShell({
     return () => window.clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    if (!supabase) {
+      return undefined;
+    }
+
+    void wakeBackendScope('internal', supabase);
+
+    const handleWake = () => {
+      void wakeBackendScope('internal', supabase);
+    };
+
+    window.addEventListener('focus', handleWake);
+    window.addEventListener('online', handleWake);
+
+    return () => {
+      window.removeEventListener('focus', handleWake);
+      window.removeEventListener('online', handleWake);
+    };
+  }, []);
+
   return (
     <div className={`app-shell ${isWebApp ? 'app-shell--web' : ''}`.trim()}>
       <header className="app-shell__header">
@@ -144,7 +167,7 @@ export default function AppShell({
 
             <div className="app-shell__notifications" aria-live="polite">
               <Bell size={15} />
-              <span>{notificationCount > 0 ? `${notificationCount} nieuw` : 'Alles bijgewerkt'}</span>
+              <span>{notificationCount > 0 ? `${notificationCount} nieuw` : backendStatusText}</span>
             </div>
 
             <div className="app-shell__clock" aria-label={`Huidige datum en tijd: ${headerDateTime}`}>

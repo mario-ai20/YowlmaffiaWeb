@@ -3,6 +3,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import BrandMark from './BrandMark';
 import UserAvatar from './UserAvatar';
+import { useBackendStatus, wakeBackendScope } from '../utils/backendStatus';
 import { getPublicBuildState, subscribeToPublicBuildState } from '../utils/publicBuildInfo';
 import { canManagePublicAlerts, ensurePublicAllowedUserRow, getPublicUserDisplayLabel, isMattizPublicUser, updatePublicAllowedUserRow } from '../utils/publicUsers';
 import { publicChatSupabase } from '../utils/supabase';
@@ -42,6 +43,7 @@ export default function PublicShell({
   const isMattiz = isMattizPublicUser(user);
   const canManageAlerts = canManagePublicAlerts(user);
   const isWebApp = typeof window !== 'undefined' && !window.desktop;
+  const backendStatusText = useBackendStatus('public', statusText);
 
   const headerDateTime = useMemo(() => {
     try {
@@ -117,6 +119,22 @@ export default function PublicShell({
 
     mainRef.current?.scrollTo?.({ top: 0, left: 0, behavior: 'auto' });
   }, [location.pathname]);
+
+  useEffect(() => {
+    void wakeBackendScope('public', publicChatSupabase);
+
+    const handleWake = () => {
+      void wakeBackendScope('public', publicChatSupabase);
+    };
+
+    window.addEventListener('focus', handleWake);
+    window.addEventListener('online', handleWake);
+
+    return () => {
+      window.removeEventListener('focus', handleWake);
+      window.removeEventListener('online', handleWake);
+    };
+  }, []);
 
   useEffect(() => {
     if (!publicChatSupabase || !user) {
@@ -362,7 +380,7 @@ export default function PublicShell({
 
             <div className="public-shell__notifications" aria-live="polite">
               <Bell size={15} />
-              <span>{statusText}</span>
+              <span>{backendStatusText}</span>
             </div>
 
             <div className="public-shell__clock" aria-label={`Huidige datum en tijd: ${headerDateTime}`}>
